@@ -1,0 +1,105 @@
+\section{Address Space}
+
+\begin{itemize}
+  \item VIV-32 uses a flat 32-bit physical address space.
+  \item Addresses are 32-bit unsigned values.
+  \item Memory is byte-addressed.
+  \item Each byte is 8 bits.
+  \item Virtual memory is not supported in VIV-32 v0.1.
+  \item Segmentation is not supported in VIV-32 v0.1.
+  \item Paging is not supported in VIV-32 v0.1.
+\end{itemize}
+
+\section{Endianness}
+
+\begin{itemize}
+  \item VIV-32 is big-endian.
+  \item Multi-byte integer values are stored with the most significant byte at the lowest memory address.
+  \item A 32-bit word value \texttt{0x12345678} stored at address \texttt{A} is represented as:
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{ll}
+\hline
+Address & Byte value \\
+\hline
+\texttt{A + 0} & \texttt{0x12} \\
+\texttt{A + 1} & \texttt{0x34} \\
+\texttt{A + 2} & \texttt{0x56} \\
+\texttt{A + 3} & \texttt{0x78} \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Access Sizes}
+
+\begin{itemize}
+  \item VIV-32 supports 8-bit byte loads and stores.
+  \item VIV-32 supports 16-bit halfword loads and stores.
+  \item VIV-32 supports 32-bit word loads and stores.
+  \item 64-bit ABI values are represented using two 32-bit words or eight bytes of memory.
+  \item Native 64-bit memory operations are not required in VIV-32 v0.1.
+\end{itemize}
+
+\section{Alignment}
+
+\begin{itemize}
+  \item Byte accesses may occur at any address.
+  \item Halfword accesses must be aligned to a 2-byte boundary.
+  \item Word accesses must be aligned to a 4-byte boundary.
+  \item 64-bit ABI values stored in memory should be aligned to an 8-byte boundary.
+  \item Misaligned halfword or word accesses raise a misaligned access exception if exception handling is enabled.
+  \item If exception handling is not enabled, misaligned access halts the machine.
+\end{itemize}
+
+\section{Instruction Alignment}
+
+\begin{itemize}
+  \item VIV-32 instructions are 32 bits wide.
+  \item Instruction fetch addresses must be 4-byte aligned.
+  \item Branch and jump targets must be 4-byte aligned.
+  \item Attempting to fetch an instruction from a misaligned address raises a misaligned access exception or halts the machine if exception handling is unavailable.
+\end{itemize}
+
+\section{Memory-Mapped I/O}
+
+\begin{itemize}
+  \item VIV-32 uses memory-mapped I/O.
+  \item Device registers occupy reserved physical address ranges.
+  \item Exact device addresses are defined by the platform specification, not by the base ISA.
+  \item The architecture reserves the upper physical address range for platform-defined MMIO.
+  \item The default platform profile may reserve \texttt{0xFFFF0000--0xFFFFFFFF} for MMIO.
+\end{itemize}
+
+\section{Reserved Low Memory}
+
+\begin{itemize}
+  \item The platform may reserve low physical memory for reset, vectors, boot code, null-pointer detection, or diagnostic use.
+  \item The default platform profile may reserve the first 4 KiB of physical memory.
+  \item The exact low-memory layout is defined by the platform specification.
+\end{itemize}
+
+\section{Caching}
+
+\begin{itemize}
+  \item VIV-32 v0.1 defines no cache architecture.
+  \item All memory accesses are treated as direct accesses to memory or memory-mapped devices.
+  \item Cache behaviour, cache coherency, and memory barriers are reserved for future versions.
+\end{itemize}
+
+\section{Atomicity}
+
+\begin{itemize}
+  \item VIV-32 v0.1 does not define atomic read-modify-write memory instructions.
+  \item Naturally aligned 8-bit, 16-bit, and 32-bit loads and stores are individually completed as single architectural memory operations.
+  \item Multiprocessor atomicity, shared-memory locking, and inter-CPU memory ordering are deferred to a future extension.
+\end{itemize}
+
+\section{Memory Ordering}
+
+\begin{itemize}
+  \item VIV-32 v0.1 assumes in-order execution.
+  \item A single CPU observes its own memory operations in program order.
+  \item No multiprocessor memory consistency model is defined in VIV-32 v0.1.
+  \item Future versions may define memory barriers, atomic operations, and inter-processor ordering rules.
+\end{itemize}

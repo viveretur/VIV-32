@@ -1,0 +1,61 @@
+\section{Stack Direction}
+
+\begin{itemize}
+  \item The VIV-32 stack grows downward.
+  \item Stack growth proceeds from high addresses toward low addresses.
+  \item A push operation decrements \(sp\) before storing data.
+  \item A pop operation loads data before incrementing \(sp\).
+\end{itemize}
+
+\section{Stack Alignment}
+
+\begin{itemize}
+  \item The stack pointer must be 8-byte aligned at every public function call boundary.
+  \item The 8-byte alignment rule allows 64-bit ABI values to be placed on the stack with natural alignment.
+  \item Future floating-point or vector extensions may define stricter alignment requirements for specific data types.
+\end{itemize}
+
+\section{Initial Stack Pointer}
+
+\begin{itemize}
+  \item The platform initialises \(sp\) to the first address above the usable stack region.
+  \item On the default platform profile, if RAM extends to the byte immediately below the MMIO region, the initial stack pointer may be \texttt{0xFFFF0000}.
+\end{itemize}
+
+\section{Frame Pointer}
+
+\begin{itemize}
+  \item Register \(fp\), corresponding to \(r13\), may be used as a frame pointer.
+  \item Leaf functions and optimised functions may omit the frame pointer.
+  \item If a function omits the frame pointer, it may use \(r13\) as a callee-saved general-purpose register.
+\end{itemize}
+
+\section{Red Zone}
+
+\begin{itemize}
+  \item No red zone is defined.
+  \item Memory below \(sp\) is not reserved.
+  \item Memory below \(sp\) may be overwritten by interrupts, traps, or called functions.
+\end{itemize}
+
+\section{Interrupt and Trap Stack Use}
+
+\begin{itemize}
+  \item Interrupt and trap handlers use the current stack in VIV-32 v0.1.
+  \item Future privileged execution models may define separate kernel or interrupt stacks.
+\end{itemize}
+
+\section{Typical Stack Frame}
+
+\begin{itemize}
+  \item A typical non-leaf function stack frame may contain:
+  \begin{itemize}
+    \item saved link register;
+    \item saved frame pointer;
+    \item saved callee-saved registers;
+    \item local variables;
+    \item spilled temporaries;
+    \item outgoing stack arguments for nested calls.
+  \end{itemize}
+  \item The exact layout is determined by the compiler or hand-written assembly routine, provided ABI preservation and alignment rules are satisfied.
+\end{itemize}

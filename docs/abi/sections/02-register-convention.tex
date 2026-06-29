@@ -1,0 +1,96 @@
+\begin{itemize}
+  \item VIV-32 defines sixteen 32-bit general-purpose registers, named \(r0\) through \(r15\).
+  \item The ABI assigns conventional roles to these registers.
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Register & ABI name & Role \\
+\hline
+r0  & zero & Hardwired zero register \\
+r1  & rv0  & Return value 0 / scratch register \\
+r2  & rv1  & Return value 1 / scratch register \\
+r3  & a0   & Argument register 0 \\
+r4  & a1   & Argument register 1 \\
+r5  & a2   & Argument register 2 \\
+r6  & a3   & Argument register 3 \\
+r7  & t0   & Caller-saved temporary register \\
+r8  & t1   & Caller-saved temporary register \\
+r9  & t2   & Caller-saved temporary register \\
+r10 & t3   & Caller-saved temporary register \\
+r11 & s0   & Callee-saved register \\
+r12 & s1   & Callee-saved register \\
+r13 & fp   & Frame pointer / callee-saved register \\
+r14 & sp   & Stack pointer \\
+r15 & lr   & Link register \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Zero Register}
+
+\begin{itemize}
+  \item Register \(r0\) always reads as zero.
+  \item Writes to \(r0\) are ignored.
+\end{itemize}
+
+\section{Return Registers}
+
+\begin{itemize}
+  \item Registers \(r1\) and \(r2\) are used for function return values.
+  \item Registers \(r1\) and \(r2\) may also be used as scratch registers by callers.
+  \item Registers \(r1\) and \(r2\) form the ABI return-value pair.
+  \item When a function returns a 64-bit integer result, \(r1\) contains the low 32 bits and \(r2\) contains the high 32 bits.
+  \item Division helper routines return the quotient in \(r1\) and the remainder in \(r2\).
+\end{itemize}
+
+\section{Argument Registers}
+
+\begin{itemize}
+  \item Registers \(r3\) through \(r6\) are used to pass the first four function arguments.
+  \item These registers are named \(a0\) through \(a3\).
+\end{itemize}
+
+\section{Caller-Saved Registers}
+
+\begin{itemize}
+  \item Registers \(r1\) through \(r10\) are caller-saved.
+  \item This includes:
+  \begin{itemize}
+    \item \(rv0\);
+    \item \(rv1\);
+    \item \(a0\)--\(a3\);
+    \item \(t0\)--\(t3\).
+  \end{itemize}
+  \item A caller must save these registers before a call if it needs their values after the call returns.
+\end{itemize}
+
+\section{Callee-Saved Registers}
+
+\begin{itemize}
+  \item Registers \(r11\) through \(r13\) are callee-saved.
+  \item These registers are named \(s0\), \(s1\), and \(fp\).
+  \item A callee must restore these registers before returning if it modifies them.
+\end{itemize}
+
+\section{Stack Pointer}
+
+\begin{itemize}
+  \item Register \(r14\), named \(sp\), is the stack pointer.
+\end{itemize}
+
+\section{Link Register}
+
+\begin{itemize}
+  \item Register \(r15\), named \(lr\), is the link register.
+  \item Call instructions write the return address to \(lr\).
+  \item A function that calls another function must preserve its incoming link register value if it needs to return to its own caller.
+\end{itemize}
+
+\section{Frame Pointer}
+
+\begin{itemize}
+  \item Register \(r13\), named \(fp\), may be used as a frame pointer.
+  \item Functions that do not require a frame pointer may use \(r13\) as a callee-saved general-purpose register.
+\end{itemize}

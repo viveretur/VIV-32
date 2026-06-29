@@ -1,0 +1,40 @@
+\section{Relocation Model}
+
+\begin{itemize}
+  \item VIV-32 v0.1 uses static relocation at link time.
+  \item Runtime relocation is not required in v0.1.
+  \item Relocations are produced by the assembler and consumed by the linker.
+  \item The linker resolves symbols and emits a flat binary image or other executable format.
+\end{itemize}
+
+\section{Initial Relocation Requirements}
+
+\begin{itemize}
+  \item The initial relocation set should support:
+  \begin{itemize}
+    \item absolute 32-bit addresses;
+    \item PC-relative branch targets;
+    \item PC-relative call targets;
+    \item split high/low immediate address construction;
+    \item section-relative references.
+  \end{itemize}
+\end{itemize}
+
+\section{Deferred Relocation Features}
+
+\begin{itemize}
+  \item Runtime relocation is deferred.
+  \item Dynamic linking relocations are deferred.
+  \item Global offset table relocations are deferred.
+  \item Procedure linkage table relocations are deferred.
+  \item Thread-local storage relocations are deferred.
+  \item ELF relocation numbers are deferred until a VIV-32 ELF ABI is defined.
+\end{itemize}
+
+\section{Position-Independent Code}
+
+\begin{itemize}
+  \item Position-independent code is not required in VIV-32 v0.1.
+  \item Relocation design should not prevent future PIC support.
+  \item Future PIC support may require additional relocations for PC-relative data access and global offset table entries.
+\end{itemize}

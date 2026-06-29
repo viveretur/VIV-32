@@ -1,0 +1,34 @@
+\begin{itemize}
+  \item This document defines the application binary interface for VIV-32.
+  \item The ABI describes conventions used by assemblers, compilers, linkers, runtimes, firmware, and operating environments.
+  \item The ABI is not the same as the ISA.
+  \item The ISA defines architectural behaviour of the processor.
+  \item The ABI defines how software agrees to use that architecture.
+\end{itemize}
+
+\section{Status}
+
+\begin{itemize}
+  \item The VIV-32 ABI is provisional.
+  \item The initial ABI is designed to support:
+  \begin{itemize}
+    \item hand-written assembly;
+    \item a reference assembler and linker;
+    \item firmware and diagnostic programs;
+    \item a small operating environment;
+    \item future compiler targets.
+  \end{itemize}
+  \item The ABI may be revised as the instruction set, object format, and runtime model mature.
+\end{itemize}
+
+\section{Design Goals}
+
+\begin{itemize}
+  \item Keep function calls simple.
+  \item Keep hand-written assembly readable.
+  \item Support a conventional downward-growing stack.
+  \item Support 32-bit return values efficiently.
+  \item Support 64-bit values using register pairs or memory.
+  \item Preserve enough structure for a later C ABI.
+  \item Avoid choices that make other language runtimes unnecessarily difficult.
+\end{itemize}

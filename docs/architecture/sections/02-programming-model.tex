@@ -1,0 +1,190 @@
+\section{Architecture Identity}
+
+\begin{itemize}
+  \item Architecture name: VIV-32.
+  \item Toolchain and implementation prefix: \texttt{viv32}.
+  \item Architecture style: 32-bit load/store architecture.
+  \item Primary implementation targets:
+  \begin{itemize}
+    \item reference emulator;
+    \item QEMU target;
+    \item SystemVerilog/Verilog hardware implementation.
+  \end{itemize}
+\end{itemize}
+
+\section{Word and Address Model}
+
+\begin{itemize}
+  \item Word size: 32 bits.
+  \item Register width: 32 bits.
+  \item Address size: 32 bits.
+  \item Byte size: 8 bits.
+  \item Endianness: big-endian.
+  \item Memory model: flat byte-addressed memory.
+  \item Address space model: flat 32-bit physical address space.
+  \item Virtual memory / paging: not supported in VIV-32 v0.1.
+  \item Segmentation: not supported in VIV-32 v0.1.
+\end{itemize}
+
+\section{Instruction Model}
+
+\begin{itemize}
+  \item Instruction width: fixed 32-bit instructions.
+  \item Instruction encoding style: regular RISC-style encoding with a small number of instruction format families.
+  \item Variable-width instructions: not supported in VIV-32 v0.1.
+  \item Compressed or variable-width instruction encodings are deferred to a later architecture extension.
+  \item Load/store architecture: yes.
+  \item Arithmetic and logical operations operate on registers.
+  \item Memory is accessed only through explicit load and store instructions.
+  \item Memory operand policy: arithmetic and logical instructions do not operate directly on memory operands.
+  \item Immediate sizes: defined per instruction format.
+  \item Branch offset unit: 32-bit instruction words, shifted left by two bits to form byte offsets.
+  \item Branch range: to be determined by the branch instruction format.
+  \item Opcode extension policy: reserve opcode space for future architectural extensions.
+  \item Possible future extensions include:
+  \begin{itemize}
+    \item compressed instructions;
+    \item atomic instructions;
+    \item privileged memory-management features;
+    \item SIMD, vector, matrix, or co-processor operations.
+  \end{itemize}
+\end{itemize}
+
+\section{Register Model}
+
+\begin{itemize}
+  \item Number of general-purpose registers: 16.
+  \item Register width: 32 bits.
+  \item General-purpose registers are named \(r0\) through \(r15\).
+  \item Register \(r0\) is hardwired to zero.
+  \item Reads from \(r0\) always return zero.
+  \item Writes to \(r0\) are ignored.
+  \item Register \(r14\) is reserved by ABI convention as the stack pointer.
+  \item Register \(r15\) is used as the link register for call and return instructions.
+  \item Register \(r13\) is reserved by ABI convention as an optional frame pointer.
+  \item The frame pointer is not a dedicated architectural register.
+  \item The program counter is directly readable using a dedicated instruction.
+  \item The program counter is not directly writable as a general-purpose register.
+  \item Control flow changes are performed through:
+  \begin{itemize}
+    \item branch instructions;
+    \item jump instructions;
+    \item call instructions;
+    \item return instructions;
+    \item trap instructions;
+    \item interrupt-return instructions.
+  \end{itemize}
+  \item Special/control registers include:
+  \begin{itemize}
+    \item \texttt{pc}: program counter;
+    \item \texttt{sr}: status register;
+    \item \texttt{epc}: exception program counter;
+    \item \texttt{ecause}: exception cause;
+    \item \texttt{eaddr}: exception address;
+    \item \texttt{evbase}: exception vector base.
+  \end{itemize}
+  \item Parallel/vector register support is not included in the base ISA.
+  \item Future extensions may define SIMD, vector, matrix, or co-processor facilities.
+  \item Matrix or co-processor support is deferred to a future extension or memory-mapped accelerator design.
+\end{itemize}
+
+\section{Arithmetic and Flags}
+
+\begin{itemize}
+  \item Integer representation: two's complement.
+  \item Arithmetic results wrap modulo \(2^{32}\).
+  \item Signed overflow sets the overflow flag.
+  \item VIV-32 defines condition flags in the processor status register.
+  \item Condition flags: Negative, Zero, Carry, Overflow, and Arithmetic Error.
+  \item Flag names: NZCVE.
+  \item Negative flag \(N\): set when the result of a flag-setting operation has bit 31 set.
+  \item Zero flag \(Z\): set when the result of a flag-setting operation is zero.
+  \item Carry flag \(C\): set when an unsigned arithmetic operation produces a carry out of bit 31.
+  \item For subtraction, \(C\) indicates that no borrow occurred.
+  \item Overflow flag \(V\): set when a signed arithmetic operation overflows the 32-bit two's complement range.
+  \item Arithmetic Error flag \(E\): set when an arithmetic operation produces an exceptional condition that does not trap in VIV-32 v0.1.
+  \item Integer divide-by-zero sets the \(E\) flag.
+  \item Comparisons update the NZCV flags without storing a result.
+  \item Conditional branches test the current flag state.
+  \item Flag update behaviour is defined per instruction.
+  \item Multiplication in v0.1: yes.
+  \item Division in v0.1: yes.
+  \item Floating point in v0.1: planned, but exact floating-point details are deferred until the integer ISA is stable.
+  \item Atomic instructions in v0.1: no.
+  \item Atomic instructions are deferred to a later multiprocessing/shared-memory extension.
+  \item Bit manipulation instructions in v0.1: yes.
+\end{itemize}
+
+\section{Memory Access}
+
+\begin{itemize}
+  \item Supported load sizes:
+  \begin{itemize}
+    \item 8-bit byte;
+    \item 16-bit halfword;
+    \item 32-bit word.
+  \end{itemize}
+  \item Supported store sizes:
+  \begin{itemize}
+    \item 8-bit byte;
+    \item 16-bit halfword;
+    \item 32-bit word.
+  \end{itemize}
+  \item Byte accesses may occur at any address.
+  \item Halfword accesses must be aligned to a 2-byte boundary.
+  \item Word accesses must be aligned to a 4-byte boundary.
+  \item 64-bit ABI values stored in memory should be aligned to an 8-byte boundary.
+  \item Misaligned halfword or word accesses raise a misaligned access exception if exception handling is enabled.
+  \item If exception handling is not enabled, misaligned access halts the machine.
+  \item VIV-32 v0.1 defines no cache architecture.
+  \item All memory accesses are treated as direct accesses to memory or memory-mapped devices.
+  \item VIV-32 uses memory-mapped I/O.
+  \item Device registers occupy reserved physical address ranges defined by the platform specification.
+  \item The default platform profile may reserve \texttt{0xFFFF0000--0xFFFFFFFF} for MMIO.
+\end{itemize}
+
+\section{Control Flow}
+
+\begin{itemize}
+  \item Jump mechanism: PC-relative immediate jumps and register-indirect jumps.
+  \item Call mechanism: PC-relative call with link register, plus register-indirect call.
+  \item Return mechanism: return jumps to the address held in the link register.
+  \item A general register-indirect jump instruction may also be used for returns.
+  \item Link register behaviour: call instructions store the address of the next instruction in \(r15\), unless an explicit destination-register form is later defined.
+  \item Trap/syscall instruction: a software trap instruction transfers control to the exception vector and records the return address and cause in exception control registers.
+  \item Halt instruction behaviour: the halt instruction stops instruction execution until reset or platform-defined external action.
+  \item NOP encoding: \texttt{0x00000000}.
+  \item Extended immediates: VIV-32 v0.1 does not use implicit next-word operands in the base instruction stream.
+  \item Full-width constants and absolute addresses are constructed using explicit constant-loading instructions or assembler pseudo-instructions.
+  \item A future extension may define literal-pool or instruction-extension mechanisms.
+\end{itemize}
+
+\section{Exceptions and Interrupts}
+
+\begin{itemize}
+  \item Privilege model: VIV-32 v0.1 defines machine mode only.
+  \item User and supervisor modes are reserved for future versions.
+  \item Reset vector: to be defined.
+  \item Exception vector model: VIV-32 uses a vector base register and cause-specific vector offsets.
+  \item The exact vector layout is defined by the architecture.
+  \item Interrupt vector model: timer interrupts and external interrupts transfer control through the exception vector mechanism.
+  \item Exception types:
+  \begin{itemize}
+    \item illegal instruction;
+    \item misaligned access;
+    \item software trap;
+    \item timer interrupt;
+    \item external interrupt.
+  \end{itemize}
+  \item Interrupt enable/disable mechanism: the processor status register contains an interrupt-enable bit.
+  \item Instructions are provided to enable and disable interrupts.
+  \item Return-from-interrupt instruction: VIV-32 defines an interrupt-return instruction which resumes execution from the saved exception program counter.
+  \item Timer interrupt: supported in VIV-32 v0.1.
+  \item External interrupt: reserved for platform devices.
+  \item Illegal instruction behaviour: illegal instructions halt the machine in VIV-32 v0.1.
+  \item Misaligned access behaviour: misaligned halfword or word accesses raise a misaligned access exception if exception handling is enabled.
+  \item If exception handling is not enabled, misaligned access halts the machine.
+  \item Divide-by-zero behaviour: integer divide-by-zero does not trap in VIV-32 v0.1.
+  \item Integer divide-by-zero sets the arithmetic-error status flag.
+  \item Software is responsible for checking the arithmetic-error flag.
+\end{itemize}

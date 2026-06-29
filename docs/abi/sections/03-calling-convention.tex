@@ -1,0 +1,75 @@
+\section{Function Calls}
+
+\begin{itemize}
+  \item Function calls use the VIV-32 link register.
+  \item Call instructions write the return address to \(lr\), corresponding to \(r15\).
+  \item The callee returns by jumping to the address held in \(lr\), unless it has restored a saved return address first.
+\end{itemize}
+
+\section{Argument Passing}
+
+\begin{itemize}
+  \item Arguments are passed left-to-right.
+  \item The first four word-sized arguments are passed in \(a0\)--\(a3\), corresponding to \(r3\)--\(r6\).
+  \item Additional arguments are passed on the stack.
+  \item Stack-passed arguments are placed in ascending argument order.
+\end{itemize}
+
+\section{Return Values}
+
+\begin{itemize}
+  \item Return values up to 32 bits are returned in \(rv0\), corresponding to \(r1\).
+  \item Return values up to 64 bits are returned in \(rv0:rv1\).
+  \item For 64-bit return values:
+  \begin{itemize}
+    \item \(rv0\) holds the low 32 bits;
+    \item \(rv1\) holds the high 32 bits.
+  \end{itemize}
+  \item Larger return values are returned indirectly through caller-provided memory.
+  \item For return values larger than 64 bits, the caller provides a return buffer and passes its address as a hidden first argument.
+\end{itemize}
+
+\section{Aggregate Values}
+
+\begin{itemize}
+  \item Small aggregates that fit in one or two words may be passed or returned in registers.
+  \item Larger aggregates are passed by address.
+  \item Exact aggregate layout rules are deferred until the C ABI is specified.
+\end{itemize}
+
+\section{Link Register Preservation}
+
+\begin{itemize}
+  \item The link register is overwritten by call instructions.
+  \item A leaf function that does not call another function may return directly using \(lr\).
+  \item A non-leaf function must save its incoming \(lr\) value if it needs to return to its own caller.
+\end{itemize}
+
+\section{Variadic Functions}
+
+\begin{itemize}
+  \item Variadic functions use a runtime-defined argument access structure.
+  \item Register arguments may be spilled into a register save area in the callee's stack frame.
+  \item Additional variadic arguments are read from the stack.
+  \item Exact \texttt{va\_list} representation is deferred to the runtime/library ABI.
+\end{itemize}
+
+\section{System Call ABI}
+
+\begin{itemize}
+  \item System calls are performed using the software trap instruction.
+  \item Register \(rv0\), corresponding to \(r1\), contains the system call number.
+  \item Registers \(a0\)--\(a3\), corresponding to \(r3\)--\(r6\), contain the first four system call arguments.
+  \item Additional system call arguments, if required, are passed by pointer to a memory structure.
+  \item The pointer is passed in one of the argument registers.
+  \item Register \(rv0\), corresponding to \(r1\), contains the primary system call return value.
+  \item Register \(rv1\), corresponding to \(r2\), may contain a secondary return value.
+  \item Failed system calls return a negative error code in \(rv0\).
+  \item The system call handler may also set the \(E\) flag to indicate failure.
+  \item Unless otherwise documented for a specific system call, syscall handlers may clobber caller-saved registers and must preserve callee-saved registers.
+  \item VIV-32 v0.1 does not define a separate user mode.
+  \item System calls are therefore an operating-environment convention rather than a hardware-enforced privilege transition.
+  \item A system call handler returns using the interrupt/trap return mechanism.
+  \item System call return restores execution at the instruction following the trap.
+  \item The mapping between system call numbers and services is defined by the operating environment, not by the base ISA.
+\end{itemize}

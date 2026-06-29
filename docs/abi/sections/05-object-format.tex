@@ -1,0 +1,88 @@
+\section{Object File Format}
+
+\begin{itemize}
+  \item VIV-32 v0.1 uses a simple custom relocatable object format.
+  \item The object format is defined by the VIV-32 toolchain specification.
+  \item ELF32 support is deferred.
+  \item A future VIV-32 ELF ABI may replace or coexist with the initial custom object format.
+\end{itemize}
+
+\section{Executable Format}
+
+\begin{itemize}
+  \item The initial executable format is a flat binary image.
+  \item A flat binary image is loaded at a platform-defined address.
+  \item The loader is responsible for placing the image at the expected address.
+\end{itemize}
+
+\section{Sections}
+
+\begin{itemize}
+  \item The initial toolchain defines at least the following sections:
+  \begin{itemize}
+    \item \texttt{.text};
+    \item \texttt{.rodata};
+    \item \texttt{.data};
+    \item \texttt{.bss}.
+  \end{itemize}
+  \item \texttt{.text} contains executable code.
+  \item \texttt{.rodata} contains read-only data.
+  \item \texttt{.data} contains initialised writable data.
+  \item \texttt{.bss} contains zero-initialised writable data.
+\end{itemize}
+
+\section{Symbols}
+
+\begin{itemize}
+  \item Symbols are case-sensitive byte strings.
+  \item Toolchain-reserved symbols use a leading double underscore.
+\end{itemize}
+
+\section{Alignment}
+
+\begin{itemize}
+  \item Code alignment: instructions are 32-bit wide and must be 4-byte aligned.
+  \item Data alignment:
+  \begin{itemize}
+    \item 8-bit data may be byte-aligned;
+    \item 16-bit data must be 2-byte aligned;
+    \item 32-bit data must be 4-byte aligned;
+    \item 64-bit ABI values must be 8-byte aligned.
+  \end{itemize}
+\end{itemize}
+
+\section{Position-Independent Code}
+
+\begin{itemize}
+  \item Position-independent code is not required in VIV-32 v0.1.
+  \item The ISA and ABI should preserve the ability to support PIC later.
+  \item Future PIC support may use:
+  \begin{itemize}
+    \item PC-relative addressing;
+    \item relocations;
+    \item runtime loader support;
+    \item a future global offset table convention.
+  \end{itemize}
+\end{itemize}
+
+\section{Dynamic Linking}
+
+\begin{itemize}
+  \item Dynamic linking is not supported in VIV-32 v0.1.
+  \item Shared libraries and dynamic relocation are deferred.
+\end{itemize}
+
+\section{C ABI Status}
+
+\begin{itemize}
+  \item The C ABI is deferred.
+  \item VIV-32 v0.1 does not require a complete C ABI before the assembler, emulator, and basic firmware are implemented.
+  \item The ABI should remain compatible with a conventional 32-bit C implementation.
+  \item VIV-32 is expected to use an ILP32-style C data model.
+  \item Under the provisional ILP32 model, \texttt{int}, \texttt{long}, and pointers are 32 bits.
+  \item Exact C type sizes are deferred.
+  \item Struct layout is deferred.
+  \item Bit-field layout is deferred.
+  \item Floating-point C ABI is deferred until the floating-point model is specified.
+  \item Toolchain target name / triple is deferred.
+\end{itemize}

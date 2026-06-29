@@ -1,0 +1,43 @@
+VIV-32 is a 32-bit load/store architecture designed for experimentation,
+education, and implementation across multiple execution targets. The
+architecture is intended to support a reference emulator, a QEMU target, and
+a SystemVerilog or Verilog hardware implementation.
+
+The initial version of the architecture prioritises regular instruction
+decoding, straightforward toolchain development, and simple hardware
+implementation over instruction density or microarchitectural sophistication.
+
+\section{Design Goals}
+
+\begin{itemize}
+  \item Provide a clean target for assemblers, compilers, interpreters, and firmware.
+  \item Keep the base ISA simple enough to implement in both software and hardware.
+  \item Support a flat 32-bit physical address space.
+  \item Support memory-mapped I/O.
+  \item Support timer interrupts for a future supervising operating environment.
+  \item Provide enough structure for an ABI, assembler, linker, and emulator.
+  \item Preserve room for future extensions such as floating point, atomics, SIMD, vector, matrix, or co-processor features.
+\end{itemize}
+
+\section{Non-Goals for VIV-32 v0.1}
+
+\begin{itemize}
+  \item Virtual memory.
+  \item Paging.
+  \item Segmentation.
+  \item Cache architecture.
+  \item Multiprocessing memory coherency.
+  \item Dynamic linking.
+  \item User/supervisor privilege separation.
+  \item Binary compatibility with an existing architecture.
+\end{itemize}
+
+\section{Specification Status}
+
+\begin{itemize}
+  \item This document describes the architectural behaviour of VIV-32.
+  \item The ABI is specified separately in the VIV-32 ABI Specification.
+  \item Platform devices and concrete memory maps are specified separately in the VIV-32 Platform Specification.
+  \item Toolchain object formats, assembler syntax, and linker behaviour are specified separately in the VIV-32 Toolchain Specification.
+  \item VIV-32 v0.1 is provisional and may change as the emulator, assembler, and hardware implementation are developed.
+\end{itemize}

@@ -1,0 +1,463 @@
+Instruction encoding is provisional in VIV-32 v0.1. The encoding described in this chapter is intended to support the initial assembler, reference emulator, and hardware implementation.
+
+\section{Instruction Word}
+
+\begin{itemize}
+\item VIV-32 instructions are fixed-width 32-bit words.
+\item Instruction fetch addresses must be 4-byte aligned.
+\item Instruction words are stored in memory using the architecture's big-endian byte order.
+\item Instruction encoding diagrams number bits from bit 31, the most significant bit, to bit 0, the least significant bit.
+\item Unless otherwise stated, immediate fields are sign-extended to 32 bits before use.
+\end{itemize}
+
+For example, the instruction word \texttt{0x12345678} stored at address \texttt{A} is represented in memory as follows:
+
+\begin{center}
+\begin{tabular}{ll}
+\hline
+Address & Byte value \\
+\hline
+\texttt{A + 0} & \texttt{0x12} \\
+\texttt{A + 1} & \texttt{0x34} \\
+\texttt{A + 2} & \texttt{0x56} \\
+\texttt{A + 3} & \texttt{0x78} \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Major Opcode Field}
+
+\begin{itemize}
+\item Bits 31--26 contain the major opcode.
+\item The major opcode is 6 bits wide.
+\item A 6-bit major opcode provides 64 primary opcode classes.
+\item Individual opcode classes may define additional function fields.
+\item Opcode space is reserved for future extensions.
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Bits & Field & Description \\
+\hline
+31--26 & opcode & Major opcode \\
+25--0  & payload & Format-specific instruction payload \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Register Fields}
+
+\begin{itemize}
+\item VIV-32 has 16 general-purpose registers.
+\item Register fields are 4 bits wide.
+\item Register field value \texttt{0x0} selects (r0).
+\item Register field value \texttt{0xF} selects (r15).
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{ll}
+\hline
+Field value & Register \\
+\hline
+\texttt{0x0} & (r0) \\
+\texttt{0x1} & (r1) \\
+\texttt{0x2} & (r2) \\
+\texttt{0x3} & (r3) \\
+\texttt{0x4} & (r4) \\
+\texttt{0x5} & (r5) \\
+\texttt{0x6} & (r6) \\
+\texttt{0x7} & (r7) \\
+\texttt{0x8} & (r8) \\
+\texttt{0x9} & (r9) \\
+\texttt{0xA} & (r10) \\
+\texttt{0xB} & (r11) \\
+\texttt{0xC} & (r12) \\
+\texttt{0xD} & (r13) \\
+\texttt{0xE} & (r14) \\
+\texttt{0xF} & (r15) \\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Instruction Format Families}
+
+VIV-32 v0.1 defines a small number of instruction format families. The exact opcode assignments are defined separately in the opcode map.
+
+\subsection{R-Type: Register-Register Operations}
+
+R-type instructions operate primarily on registers.
+
+\begin{center}
+\begin{tabular}{llllll}
+\hline
+Bits & 31--26 & 25--22 & 21--18 & 17--14 & 13--0 \\
+\hline
+Field & opcode & rd & ra & rb & func/reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item (rd) is the destination register.
+\item (ra) is the first source register.
+\item (rb) is the second source register.
+\item The remaining bits select a sub-operation or are reserved.
+\item Arithmetic and logical R-type instructions update condition flags by default.
+\end{itemize}
+
+Examples of R-type operations include:
+
+\begin{itemize}
+\item \texttt{add rd, ra, rb}
+\item \texttt{sub rd, ra, rb}
+\item \texttt{and rd, ra, rb}
+\item \texttt{or rd, ra, rb}
+\item \texttt{xor rd, ra, rb}
+\end{itemize}
+
+\subsection{R2-Type: Register-Register Operations with Two Destinations}
+
+R2-type instructions are used for operations that naturally produce two results, such as full-width multiplication or division with remainder.
+
+\begin{center}
+\begin{tabular}{lllllll}
+\hline
+Bits & 31--26 & 25--22 & 21--18 & 17--14 & 13--10 & 9--0 \\
+\hline
+Field & opcode & rd0 & rd1 & ra & rb & func/reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item (rd0) is the first destination register.
+\item (rd1) is the second destination register.
+\item (ra) is the first source register.
+\item (rb) is the second source register.
+\item The remaining bits select a sub-operation or are reserved.
+\end{itemize}
+
+Examples of R2-type operations include:
+
+\begin{itemize}
+\item \texttt{mul rdlo, rdhi, ra, rb}
+\item \texttt{mulu rdlo, rdhi, ra, rb}
+\item \texttt{div rdq, rdr, ra, rb}
+\item \texttt{divu rdq, rdr, ra, rb}
+\end{itemize}
+
+For multiplication, (rd0) receives the low 32 bits and (rd1) receives the high 32 bits. For division, (rd0) receives the quotient and (rd1) receives the remainder.
+
+\subsection{I-Type: Register-Immediate Operations}
+
+I-type instructions operate on a register and an immediate value.
+
+\begin{center}
+\begin{tabular}{lllll}
+\hline
+Bits & 31--26 & 25--22 & 21--18 & 17--0 \\
+\hline
+Field & opcode & rd & ra & imm18 \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item (rd) is the destination register.
+\item (ra) is the source register.
+\item \texttt{imm18} is an 18-bit immediate value.
+\item Unless otherwise stated, \texttt{imm18} is sign-extended to 32 bits before use.
+\item Arithmetic and logical I-type instructions update condition flags by default.
+\end{itemize}
+
+Examples of I-type operations include:
+
+\begin{itemize}
+\item \texttt{addi rd, ra, imm}
+\item \texttt{andi rd, ra, imm}
+\item \texttt{ori rd, ra, imm}
+\item \texttt{xori rd, ra, imm}
+\end{itemize}
+
+\subsection{U-Type: Upper Immediate and Constant Construction}
+
+U-type instructions are used to construct larger constants and addresses in registers.
+
+\begin{center}
+\begin{tabular}{lllll}
+\hline
+Bits & 31--26 & 25--22 & 21--16 & 15--0 \\
+\hline
+Field & opcode & rd & mode/reserved & imm16 \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item (rd) is the destination register.
+\item \texttt{imm16} is a 16-bit immediate value.
+\item U-type instructions are intended to support full 32-bit constant and address construction.
+\item The exact semantics of U-type instructions are defined in the instruction set chapter.
+\end{itemize}
+
+A typical full-width constant may be constructed using an upper-immediate instruction followed by a lower-immediate operation, for example:
+
+\begin{verbatim}
+lui  r1, 0x1234
+ori  r1, r1, 0x5678
+\end{verbatim}
+
+This sequence constructs the value \texttt{0x12345678} in (r1), subject to the exact semantics of \texttt{lui} and \texttt{ori}.
+
+\section{Memory Instruction Formats}
+
+\subsection{M-Type: Load and Store Operations}
+
+M-type instructions access memory using base-plus-offset addressing.
+
+\begin{center}
+\begin{tabular}{llllll}
+\hline
+Bits & 31--26 & 25--22 & 21--18 & 17--16 & 15--0 \\
+\hline
+Field & opcode & rd/rs & base & size & offset16 \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item For loads, (rd/rs) is the destination register.
+\item For stores, (rd/rs) is the source register.
+\item (base) is the base address register.
+\item \texttt{offset16} is a signed 16-bit byte offset.
+\item The effective address is (base + signextend(offset16)).
+\item The \texttt{size} field selects the access size.
+\end{itemize}
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Size field & Access size & Description \\
+\hline
+\texttt{00} & 8-bit  & byte \\
+\texttt{01} & 16-bit & halfword \\
+\texttt{10} & 32-bit & word \\
+\texttt{11} & reserved & reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+Examples of M-type operations include:
+
+\begin{itemize}
+\item \texttt{lb rd, offset(base)}
+\item \texttt{lbu rd, offset(base)}
+\item \texttt{lh rd, offset(base)}
+\item \texttt{lhu rd, offset(base)}
+\item \texttt{lw rd, offset(base)}
+\item \texttt{sb rs, offset(base)}
+\item \texttt{sh rs, offset(base)}
+\item \texttt{sw rs, offset(base)}
+\end{itemize}
+
+\section{Branch and Jump Formats}
+
+VIV-32 supports both flag-based conditional branches and register-comparison branches.
+
+\subsection{BF-Type: Flag-Based Conditional Branches}
+
+BF-type instructions branch according to the current condition flags in the status register.
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+Bits & 31--26 & 25--22 & 21--0 \\
+\hline
+Field & opcode & cond & offset22 \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item \texttt{cond} selects a condition-code test.
+\item \texttt{offset22} is a signed PC-relative branch offset.
+\item Branch offsets are measured in 32-bit instruction words.
+\item The encoded offset is shifted left by two bits to form a byte offset.
+\item The branch target is relative to the address of the instruction following the branch.
+\end{itemize}
+
+Examples of flag-based branches include:
+
+\begin{itemize}
+\item \texttt{b.eq label}
+\item \texttt{b.ne label}
+\item \texttt{b.cs label}
+\item \texttt{b.cc label}
+\item \texttt{b.vs label}
+\item \texttt{b.vc label}
+\item \texttt{b.es label}
+\item \texttt{b.ec label}
+\end{itemize}
+
+\subsection{BC-Type: Register-Comparison Branches}
+
+BC-type instructions compare two registers and branch according to the specified comparison.
+
+\begin{center}
+\begin{tabular}{llllll}
+\hline
+Bits & 31--26 & 25--22 & 21--18 & 17--14 & 13--0 \\
+\hline
+Field & opcode & cond & ra & rb & offset14 \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item \texttt{cond} selects the comparison condition.
+\item (ra) is the first comparison register.
+\item (rb) is the second comparison register.
+\item \texttt{offset14} is a signed PC-relative branch offset.
+\item Branch offsets are measured in 32-bit instruction words.
+\item The encoded offset is shifted left by two bits to form a byte offset.
+\item The branch target is relative to the address of the instruction following the branch.
+\item Register-comparison branches may update condition flags if defined by the instruction set chapter.
+\end{itemize}
+
+Examples of register-comparison branches include:
+
+\begin{itemize}
+\item \texttt{beq ra, rb, label}
+\item \texttt{bne ra, rb, label}
+\item \texttt{blt ra, rb, label}
+\item \texttt{bge ra, rb, label}
+\item \texttt{bltu ra, rb, label}
+\item \texttt{bgeu ra, rb, label}
+\end{itemize}
+
+\subsection{J-Type: PC-Relative Jump and Call}
+
+J-type instructions perform unconditional PC-relative control transfer.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Bits & 31--26 & 25--0 \\
+\hline
+Field & opcode & offset26 \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item \texttt{offset26} is a signed PC-relative offset.
+\item Jump offsets are measured in 32-bit instruction words.
+\item The encoded offset is shifted left by two bits to form a byte offset.
+\item The jump target is relative to the address of the instruction following the jump.
+\end{itemize}
+
+Examples of J-type operations include:
+
+\begin{itemize}
+\item \texttt{jmp label}
+\item \texttt{call label}
+\end{itemize}
+
+\subsection{JR-Type: Register-Indirect Jump and Call}
+
+JR-type instructions perform register-indirect control transfer.
+
+\begin{center}
+\begin{tabular}{lllll}
+\hline
+Bits & 31--26 & 25--22 & 21--18 & 17--0 \\
+\hline
+Field & opcode & rd/link & target & func/reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item (target) contains the target address.
+\item For plain register jumps, (rd/link) is ignored or must be (r0).
+\item For register-indirect calls, (rd/link) receives the return address.
+\item The standard ABI link register is (r15).
+\item Register-indirect targets must be 4-byte aligned.
+\end{itemize}
+
+Examples of JR-type operations include:
+
+\begin{itemize}
+\item \texttt{jr target}
+\item \texttt{jalr rd, target}
+\item \texttt{ret}
+\end{itemize}
+
+The \texttt{ret} instruction may be encoded as a distinct instruction or defined as an assembler pseudo-instruction for \texttt{jr r15}.
+
+\section{System Instruction Format}
+
+\subsection{X-Type: System and Control Operations}
+
+X-type instructions access system facilities, control registers, traps, and processor state.
+
+\begin{center}
+\begin{tabular}{lllll}
+\hline
+Bits & 31--26 & 25--22 & 21--18 & 17--0 \\
+\hline
+Field & opcode & rd & rs & sysfunc \\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{itemize}
+\item (rd) is a destination register when required.
+\item (rs) is a source register when required.
+\item \texttt{sysfunc} selects the system operation.
+\end{itemize}
+
+Examples of X-type operations include:
+
+\begin{itemize}
+\item \texttt{nop}
+\item \texttt{halt}
+\item \texttt{trap imm}
+\item \texttt{syscall}
+\item \texttt{iret}
+\item \texttt{ei}
+\item \texttt{di}
+\item \texttt{rdpc rd}
+\item \texttt{mrs rd, sr}
+\item \texttt{msr sr, rs}
+\end{itemize}
+
+The \texttt{syscall} instruction is a specialised software trap used by the operating environment. It may share trap machinery internally, but it is exposed as a distinct assembly instruction.
+
+\section{NOP Encoding}
+
+\begin{itemize}
+\item The all-zero instruction word \texttt{0x00000000} encodes \texttt{nop}.
+\item \texttt{nop} performs no architectural state change except advancing the program counter.
+\item \texttt{nop} does not modify condition flags.
+\end{itemize}
+
+\section{Flag Update Policy}
+
+\begin{itemize}
+\item Arithmetic and logical instructions update condition flags by default.
+\item Comparison instructions update condition flags without storing a result.
+\item Load and store instructions do not update condition flags.
+\item Branch, jump, call, and return instructions do not update condition flags.
+\item System instructions update condition flags only when explicitly specified.
+\end{itemize}
+
+\section{Reserved Encodings}
+
+\begin{itemize}
+\item Encodings not defined by VIV-32 v0.1 are reserved.
+\item Reserved encodings must not be generated by conforming assemblers.
+\item Executing a reserved encoding has illegal-instruction behaviour.
+\item In VIV-32 v0.1, illegal instructions halt the machine.
+\end{itemize}
