@@ -1,0 +1,43 @@
+# LaTeX
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.lof
+*.lot
+docs/**/build/
+docs/**/*.pdf
+
+# Rust
+target/
+Cargo.lock
+
+# C/C++ / QEMU / Verilator
+*.o
+*.a
+*.so
+*.d
+*.elf
+*.bin
+*.hex
+*.vcd
+obj_dir/
+
+# Editor
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Local
+.env
+tmp/
+build/
+dist/
