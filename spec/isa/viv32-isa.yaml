@@ -385,3 +385,144 @@ exception_causes:
     description: Platform external interrupt
   reserved:
     range: [0x08, 0xFF]
+
+function_codes:
+  register_alu:
+    opcode: register_alu
+    field: func
+    width_bits: 14
+    values:
+      add:
+        value: 0x0000
+      sub:
+        value: 0x0001
+      and:
+        value: 0x0002
+      or:
+        value: 0x0003
+      xor:
+        value: 0x0004
+      not:
+        value: 0x0005
+      neg:
+        value: 0x0006
+      cmp:
+        value: 0x0007
+
+  register_shift:
+    opcode: register_shift
+    field: func
+    width_bits: 14
+    values:
+      shl:
+        value: 0x0000
+      shr:
+        value: 0x0001
+      sar:
+        value: 0x0002
+
+  multiply_divide:
+    opcode: multiply_divide
+    field: func
+    width_bits: 10
+    values:
+      mul:
+        value: 0x000
+      mulu:
+        value: 0x001
+      div:
+        value: 0x002
+      divu:
+        value: 0x003
+  register_jump_call:
+    opcode: register_jump_call
+    field: func
+    width_bits: 18
+    values:
+      jr:
+        value: 0x00000
+      jalr:
+        value: 0x00001
+      reserved:
+        range: [0x00002, 0x3FFFF]
+  register_jump_call:
+    opcode: register_jump_call
+    field: func
+    width_bits: 18
+    values:
+      jr:
+        value: 0x00000
+      jalr:
+        value: 0x00001
+      reserved:
+        range: [0x00002, 0x3FFFF]
+
+mode_codes:
+  immediate_arithmetic_compare:
+    opcode: immediate_arithmetic_compare
+    field: mode
+    width_bits: 2
+    values:
+      addi:
+        value: 0x0
+      subi:
+        value: 0x1
+      cmpi:
+        value: 0x2
+      reserved:
+        value: 0x3
+
+  immediate_logical:
+    opcode: immediate_logical
+    field: mode
+    width_bits: 2
+    values:
+      andi:
+        value: 0x0
+      ori:
+        value: 0x1
+      xori:
+        value: 0x2
+      reserved:
+        value: 0x3
+
+  immediate_shift:
+    opcode: immediate_shift
+    field: mode
+    width_bits: 2
+    values:
+      shli:
+        value: 0x0
+      shri:
+        value: 0x1
+      sari:
+        value: 0x2
+      reserved:
+        value: 0x3
+
+  bit_immediate:
+    opcode: bit_immediate
+    field: mode
+    width_bits: 2
+    values:
+      btst:
+        value: 0x0
+      bset:
+        value: 0x1
+      bclr:
+        value: 0x2
+      btgl:
+        value: 0x3
+
+  constant_construction:
+    opcode: constant_construction
+    field: mode
+    width_bits: 6
+    values:
+      lui:
+        value: 0x00
+      lli:
+        value: 0x01
+      reserved:
+        range: [0x02, 0x3F]
+

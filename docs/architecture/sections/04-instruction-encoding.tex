@@ -1070,7 +1070,7 @@ Mnemonic & \code{sysop} & \code{payload} use & Payload requirement \\
 \end{center}
 
 \noindent
-For \code{trap}, the 12-bit \code{payload} field is interpreted as an unsigned software trap immediate, \code{trapimm12}. The trap immediate is reported to the exception handler as part of the software trap cause information.
+For \code{trap}, the 12-bit \code{payload} field is interpreted as an unsigned software trap immediate, \code{trapimm12}. Software may recover this immediate by decoding the \code{trap} instruction at \ensuremath{epc - 4}.
 
 \noindent
 For \code{mrs} and \code{msr}, the low 4 bits of \code{payload} encode the selected control register. The upper 8 bits of \code{payload} are reserved and must be encoded as zero by conforming assemblers.
