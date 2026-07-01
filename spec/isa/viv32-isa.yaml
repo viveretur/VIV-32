@@ -1,0 +1,387 @@
+architecture:
+  name: VIV-32
+  version: 0.1-draft
+  prefix: viv32
+  endian: big
+  word_bits: 32
+  address_bits: 32
+  instruction_bits: 32
+
+registers:
+  gpr:
+    width_bits: 32
+    count: 16
+    encoding_bits: 4
+    names:
+      r0:  0x0
+      r1:  0x1
+      r2:  0x2
+      r3:  0x3
+      r4:  0x4
+      r5:  0x5
+      r6:  0x6
+      r7:  0x7
+      r8:  0x8
+      r9:  0x9
+      r10: 0xA
+      r11: 0xB
+      r12: 0xC
+      r13: 0xD
+      r14: 0xE
+      r15: 0xF
+    special:
+      zero: r0
+      sp: r14
+      lr: r15
+      fp: r13
+
+control_registers:
+  pc:
+    number: 0x0
+    description: Program counter
+  sr:
+    number: 0x1
+    description: Status register
+  epc:
+    number: 0x2
+    description: Exception program counter
+  ecause:
+    number: 0x3
+    description: Exception cause
+  eaddr:
+    number: 0x4
+    description: Exception address
+  evbase:
+    number: 0x5
+    description: Exception vector base address
+  reserved:
+    range: [0x6, 0xF]
+
+status_register:
+  bits:
+    N:
+      bit: 0
+      description: Negative flag
+    Z:
+      bit: 1
+      description: Zero flag
+    C:
+      bit: 2
+      description: Carry flag
+    V:
+      bit: 3
+      description: Signed overflow flag
+    E:
+      bit: 4
+      description: Arithmetic error flag
+    IE:
+      bit: 5
+      description: Interrupt enable bit
+  reserved:
+    range: [6, 31]
+    required_value: 0
+
+formats:
+  R:
+    fields:
+      opcode: { bits: [31, 26] }
+      func:   { bits: [25, 12] }
+      rd:     { bits: [11, 8] }
+      ra:     { bits: [7, 4] }
+      rb:     { bits: [3, 0] }
+
+  R2:
+    fields:
+      opcode: { bits: [31, 26] }
+      func:   { bits: [25, 16] }
+      rd0:    { bits: [15, 12] }
+      rd1:    { bits: [11, 8] }
+      ra:     { bits: [7, 4] }
+      rb:     { bits: [3, 0] }
+
+  I:
+    fields:
+      opcode: { bits: [31, 26] }
+      mode:   { bits: [25, 24] }
+      imm16:  { bits: [23, 8] }
+      rd:     { bits: [7, 4] }
+      ra:     { bits: [3, 0] }
+
+  U:
+    fields:
+      opcode: { bits: [31, 26] }
+      mode:   { bits: [25, 20] }
+      imm16:  { bits: [19, 4] }
+      rd:     { bits: [3, 0] }
+
+  M:
+    fields:
+      opcode:   { bits: [31, 26] }
+      u:        { bits: [25, 25] }
+      size:     { bits: [24, 23] }
+      offset15: { bits: [22, 8] }
+      rd_rs:    { bits: [7, 4] }
+      base:     { bits: [3, 0] }
+
+  BF:
+    fields:
+      opcode:   { bits: [31, 26] }
+      cond:     { bits: [25, 22] }
+      offset22: { bits: [21, 0] }
+
+  BC:
+    fields:
+      opcode:   { bits: [31, 26] }
+      cond:     { bits: [25, 22] }
+      offset14: { bits: [21, 8] }
+      ra:       { bits: [7, 4] }
+      rb:       { bits: [3, 0] }
+
+  J:
+    fields:
+      opcode:   { bits: [31, 26] }
+      offset26: { bits: [25, 0] }
+
+  JR:
+    fields:
+      opcode: { bits: [31, 26] }
+      func:   { bits: [25, 8] }
+      rd:     { bits: [7, 4] }
+      target: { bits: [3, 0] }
+
+  X:
+    fields:
+      opcode:  { bits: [31, 26] }
+      sysfunc: { bits: [25, 8] }
+      rd:      { bits: [7, 4] }
+      rs:      { bits: [3, 0] }
+    subfields:
+      sysop:
+        parent: sysfunc
+        bits: [17, 12]
+        instruction_bits: [25, 20]
+      payload:
+        parent: sysfunc
+        bits: [11, 0]
+        instruction_bits: [19, 8]
+
+opcodes:
+  system_control:
+    value: 0x00
+    format: X
+    class: System/control
+
+  register_alu:
+    value: 0x01
+    format: R
+    class: Register ALU
+
+  immediate_arithmetic_compare:
+    value: 0x02
+    format: I
+    class: Immediate arithmetic/compare
+
+  immediate_logical:
+    value: 0x03
+    format: I
+    class: Immediate logical
+
+  register_shift:
+    value: 0x04
+    format: R
+    class: Register shifts
+
+  immediate_shift:
+    value: 0x05
+    format: I
+    class: Immediate shifts
+
+  bit_immediate:
+    value: 0x06
+    format: I
+    class: Bit immediate
+
+  multiply_divide:
+    value: 0x07
+    format: R2
+    class: Multiply/divide
+
+  constant_construction:
+    value: 0x08
+    format: U
+    class: Constant construction
+
+  load:
+    value: 0x09
+    format: M
+    class: Load
+
+  store:
+    value: 0x0A
+    format: M
+    class: Store
+
+  flag_branch:
+    value: 0x0B
+    format: BF
+    class: Flag branch
+
+  register_branch:
+    value: 0x0C
+    format: BC
+    class: Register branch
+
+  pc_relative_jump:
+    value: 0x0D
+    format: J
+    class: PC-relative jump
+
+  pc_relative_call:
+    value: 0x0E
+    format: J
+    class: PC-relative call
+
+  register_jump_call:
+    value: 0x0F
+    format: JR
+    class: Register jump/call
+
+  reserved:
+    range: [0x10, 0x3F]
+
+conditions:
+  eq:
+    value: 0x0
+    meaning: equal
+  ne:
+    value: 0x1
+    meaning: not equal
+  lt:
+    value: 0x2
+    meaning: signed less than
+  le:
+    value: 0x3
+    meaning: signed less than or equal
+  gt:
+    value: 0x4
+    meaning: signed greater than
+  ge:
+    value: 0x5
+    meaning: signed greater than or equal
+  ltu:
+    value: 0x6
+    meaning: unsigned less than
+  leu:
+    value: 0x7
+    meaning: unsigned less than or equal
+  gtu:
+    value: 0x8
+    meaning: unsigned greater than
+  geu:
+    value: 0x9
+    meaning: unsigned greater than or equal
+  cs:
+    value: 0xA
+    meaning: carry set
+  cc:
+    value: 0xB
+    meaning: carry clear
+  vs:
+    value: 0xC
+    meaning: overflow set
+  vc:
+    value: 0xD
+    meaning: overflow clear
+  es:
+    value: 0xE
+    meaning: arithmetic error set
+  ec:
+    value: 0xF
+    meaning: arithmetic error clear
+
+memory_sizes:
+  byte:
+    value: 0b00
+    bits: 8
+    alignment: 1
+  halfword:
+    value: 0b01
+    bits: 16
+    alignment: 2
+  word:
+    value: 0b10
+    bits: 32
+    alignment: 4
+  reserved:
+    value: 0b11
+
+system_ops:
+  nop:
+    sysop: 0x00
+    payload: unused
+    payload_required_value: 0
+  halt:
+    sysop: 0x01
+    payload: unused
+    payload_required_value: 0
+  trap:
+    sysop: 0x02
+    payload: trapimm12
+  syscall:
+    sysop: 0x03
+    payload: unused
+    payload_required_value: 0
+  iret:
+    sysop: 0x04
+    payload: unused
+    payload_required_value: 0
+  ei:
+    sysop: 0x05
+    payload: unused
+    payload_required_value: 0
+  di:
+    sysop: 0x06
+    payload: unused
+    payload_required_value: 0
+  rdpc:
+    sysop: 0x07
+    payload: unused
+    payload_required_value: 0
+  mrs:
+    sysop: 0x08
+    payload: creg4
+    reserved_payload_bits: [11, 4]
+  msr:
+    sysop: 0x09
+    payload: creg4
+    reserved_payload_bits: [11, 4]
+  reserved:
+    range: [0x0A, 0x3F]
+
+exception_causes:
+  reset:
+    value: 0x00
+    description: Reset entry
+  illegal_instruction:
+    value: 0x01
+    description: Undefined or reserved instruction encoding
+  misaligned_instruction_fetch:
+    value: 0x02
+    description: Instruction fetch from a non-4-byte-aligned address
+  misaligned_data_access:
+    value: 0x03
+    description: Misaligned halfword or word load/store
+  software_trap:
+    value: 0x04
+    description: trap instruction
+  system_call:
+    value: 0x05
+    description: syscall instruction
+  timer_interrupt:
+    value: 0x06
+    description: Platform timer interrupt
+  external_interrupt:
+    value: 0x07
+    description: Platform external interrupt
+  reserved:
+    range: [0x08, 0xFF]
