@@ -10,17 +10,17 @@ Instruction encoding is provisional in VIV-32 v0.1. The encoding described in th
 \item Unless otherwise stated, immediate fields are sign-extended to 32 bits before use.
 \end{itemize}
 
-For example, the instruction word \texttt{0x12345678} stored at address \texttt{A} is represented in memory as follows:
+For example, the instruction word \code{0x12345678} stored at address \code{A} is represented in memory as follows:
 
 \begin{center}
 \begin{tabular}{ll}
 \hline
 Address & Byte value \\
 \hline
-\texttt{A + 0} & \texttt{0x12} \\
-\texttt{A + 1} & \texttt{0x34} \\
-\texttt{A + 2} & \texttt{0x56} \\
-\texttt{A + 3} & \texttt{0x78} \\
+\code{A + 0} & \code{0x12} \\
+\code{A + 1} & \code{0x34} \\
+\code{A + 2} & \code{0x56} \\
+\code{A + 3} & \code{0x78} \\
 \hline
 \end{tabular}
 \end{center}
@@ -49,10 +49,13 @@ Bits & Field & Description \\
 \section{Register Fields}
 
 \begin{itemize}
-\item VIV-32 has 16 general-purpose registers.
-\item Register fields are 4 bits wide.
-\item Register field value \texttt{0x0} selects (r0).
-\item Register field value \texttt{0xF} selects (r15).
+  \item VIV-32 has 16 general-purpose registers.
+  \item Register fields are 4 bits wide.
+  \item A register field value of \code{0x0} selects register \code{r0}.
+  \item A register field value of \code{0xF} selects register \code{r15}.
+  \item Register field names such as \code{rd}, \code{ra}, \code{rb}, \code{rd0}, \code{rd1}, \code{rs}, \code{base}, and \code{target} are documentation names for encoded register fields.
+  \item Register fields are placed on nibble boundaries wherever practical.
+  \item Register fields are placed in the least-significant nibbles of the instruction word wherever the instruction format permits.
 \end{itemize}
 
 \begin{center}
@@ -60,22 +63,22 @@ Bits & Field & Description \\
 \hline
 Field value & Register \\
 \hline
-\texttt{0x0} & (r0) \\
-\texttt{0x1} & (r1) \\
-\texttt{0x2} & (r2) \\
-\texttt{0x3} & (r3) \\
-\texttt{0x4} & (r4) \\
-\texttt{0x5} & (r5) \\
-\texttt{0x6} & (r6) \\
-\texttt{0x7} & (r7) \\
-\texttt{0x8} & (r8) \\
-\texttt{0x9} & (r9) \\
-\texttt{0xA} & (r10) \\
-\texttt{0xB} & (r11) \\
-\texttt{0xC} & (r12) \\
-\texttt{0xD} & (r13) \\
-\texttt{0xE} & (r14) \\
-\texttt{0xF} & (r15) \\
+\code{0x0} & \code{r0} \\
+\code{0x1} & \code{r1} \\
+\code{0x2} & \code{r2} \\
+\code{0x3} & \code{r3} \\
+\code{0x4} & \code{r4} \\
+\code{0x5} & \code{r5} \\
+\code{0x6} & \code{r6} \\
+\code{0x7} & \code{r7} \\
+\code{0x8} & \code{r8} \\
+\code{0x9} & \code{r9} \\
+\code{0xA} & \code{r10} \\
+\code{0xB} & \code{r11} \\
+\code{0xC} & \code{r12} \\
+\code{0xD} & \code{r13} \\
+\code{0xE} & \code{r14} \\
+\code{0xF} & \code{r15} \\
 \hline
 \end{tabular}
 \end{center}
@@ -86,378 +89,1075 @@ VIV-32 v0.1 defines a small number of instruction format families. The exact opc
 
 \subsection{R-Type: Register-Register Operations}
 
-R-type instructions operate primarily on registers.
+R-type instructions operate primarily on registers. Register fields are placed in the least-significant nibbles of the instruction word so that register operands remain readable in hexadecimal instruction dumps.
 
 \begin{center}
 \begin{tabular}{llllll}
 \hline
-Bits & 31--26 & 25--22 & 21--18 & 17--14 & 13--0 \\
+Bits & 31--26 & 25--12 & 11--8 & 7--4 & 3--0 \\
 \hline
-Field & opcode & rd & ra & rb & func/reserved \\
+Field & \code{opcode} & \code{func/reserved} & \code{rd} & \code{ra} & \code{rb} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item (rd) is the destination register.
-\item (ra) is the first source register.
-\item (rb) is the second source register.
-\item The remaining bits select a sub-operation or are reserved.
-\item Arithmetic and logical R-type instructions update condition flags by default.
+  \item \code{opcode} is the 6-bit major opcode.
+  \item \code{func/reserved} selects the specific register-register operation or is reserved.
+  \item \code{rd} is the destination register field.
+  \item \code{ra} is the first source register field.
+  \item \code{rb} is the second source register field.
+  \item Arithmetic and logical R-type instructions update condition flags by default.
 \end{itemize}
 
+\noindent
 Examples of R-type operations include:
 
 \begin{itemize}
-\item \texttt{add rd, ra, rb}
-\item \texttt{sub rd, ra, rb}
-\item \texttt{and rd, ra, rb}
-\item \texttt{or rd, ra, rb}
-\item \texttt{xor rd, ra, rb}
+  \item \code{add rd, ra, rb}
+  \item \code{sub rd, ra, rb}
+  \item \code{and rd, ra, rb}
+  \item \code{or rd, ra, rb}
+  \item \code{xor rd, ra, rb}
 \end{itemize}
 
 \subsection{R2-Type: Register-Register Operations with Two Destinations}
 
-R2-type instructions are used for operations that naturally produce two results, such as full-width multiplication or division with remainder.
+R2-type instructions are used for operations that naturally produce two register results, such as full-width multiplication or division with remainder. The four register fields occupy the least-significant four nibbles of the instruction word.
 
 \begin{center}
 \begin{tabular}{lllllll}
 \hline
-Bits & 31--26 & 25--22 & 21--18 & 17--14 & 13--10 & 9--0 \\
+Bits & 31--26 & 25--16 & 15--12 & 11--8 & 7--4 & 3--0 \\
 \hline
-Field & opcode & rd0 & rd1 & ra & rb & func/reserved \\
+Field & \code{opcode} & \code{func/reserved} & \code{rd0} & \code{rd1} & \code{ra} & \code{rb} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item (rd0) is the first destination register.
-\item (rd1) is the second destination register.
-\item (ra) is the first source register.
-\item (rb) is the second source register.
-\item The remaining bits select a sub-operation or are reserved.
+  \item \code{opcode} is the 6-bit major opcode.
+  \item \code{func/reserved} selects the specific two-result operation or is reserved.
+  \item \code{rd0} is the first destination register field.
+  \item \code{rd1} is the second destination register field.
+  \item \code{ra} is the first source register field.
+  \item \code{rb} is the second source register field.
 \end{itemize}
 
+\noindent
 Examples of R2-type operations include:
 
 \begin{itemize}
-\item \texttt{mul rdlo, rdhi, ra, rb}
-\item \texttt{mulu rdlo, rdhi, ra, rb}
-\item \texttt{div rdq, rdr, ra, rb}
-\item \texttt{divu rdq, rdr, ra, rb}
+  \item \code{mul rdlo, rdhi, ra, rb}
+  \item \code{mulu rdlo, rdhi, ra, rb}
+  \item \code{div rdq, rdr, ra, rb}
+  \item \code{divu rdq, rdr, ra, rb}
 \end{itemize}
 
-For multiplication, (rd0) receives the low 32 bits and (rd1) receives the high 32 bits. For division, (rd0) receives the quotient and (rd1) receives the remainder.
+\noindent
+For multiplication instructions, \(rd0\) receives the low 32 bits of the result and \(rd1\) receives the high 32 bits of the result.
+For division instructions, \(rd0\) receives the quotient and \(rd1\) receives the remainder.
 
 \subsection{I-Type: Register-Immediate Operations}
 
-I-type instructions operate on a register and an immediate value.
+I-type instructions operate on a register and a 16-bit immediate value. Register fields are placed in the least-significant nibbles of the instruction word so that the register operands remain readable in hexadecimal instruction dumps.
 
 \begin{center}
-\begin{tabular}{lllll}
+\begin{tabular}{llllll}
 \hline
-Bits & 31--26 & 25--22 & 21--18 & 17--0 \\
+Bits & 31--26 & 25--24 & 23--8 & 7--4 & 3--0 \\
 \hline
-Field & opcode & rd & ra & imm18 \\
+Field & \code{opcode} & \code{mode/reserved} & \code{imm16} & \code{rd} & \code{ra} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item (rd) is the destination register.
-\item (ra) is the source register.
-\item \texttt{imm18} is an 18-bit immediate value.
-\item Unless otherwise stated, \texttt{imm18} is sign-extended to 32 bits before use.
-\item Arithmetic and logical I-type instructions update condition flags by default.
+  \item \code{opcode} is the 6-bit major opcode.
+  \item \code{mode/reserved} selects an instruction variant or is reserved.
+  \item \code{imm16} is a 16-bit immediate field.
+  \item \code{rd} is the destination register field.
+  \item \code{ra} is the source register field.
+  \item Unless otherwise stated, \code{imm16} is sign-extended to 32 bits before use.
+  \item Arithmetic and logical I-type instructions update condition flags by default.
 \end{itemize}
+
+\noindent
+The low byte of an I-type instruction contains the register fields. This makes the destination and source registers directly visible in the least-significant two hexadecimal digits of the instruction word.
 
 Examples of I-type operations include:
 
 \begin{itemize}
-\item \texttt{addi rd, ra, imm}
-\item \texttt{andi rd, ra, imm}
-\item \texttt{ori rd, ra, imm}
-\item \texttt{xori rd, ra, imm}
+  \item \code{addi rd, ra, imm}
+  \item \code{subi rd, ra, imm}
+  \item \code{andi rd, ra, imm}
+  \item \code{ori rd, ra, imm}
+  \item \code{xori rd, ra, imm}
+  \item \code{cmpi ra, imm}
 \end{itemize}
 
 \subsection{U-Type: Upper Immediate and Constant Construction}
 
-U-type instructions are used to construct larger constants and addresses in registers.
+U-type instructions construct constants and addresses in registers. U-type instructions use a 16-bit immediate field and place the destination register in the least-significant nibble of the instruction word.
 
 \begin{center}
 \begin{tabular}{lllll}
 \hline
-Bits & 31--26 & 25--22 & 21--16 & 15--0 \\
+Bits & 31--26 & 25--20 & 19--4 & 3--0 \\
 \hline
-Field & opcode & rd & mode/reserved & imm16 \\
+Field & \code{opcode} & \code{mode/reserved} & \code{imm16} & \code{rd} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item (rd) is the destination register.
-\item \texttt{imm16} is a 16-bit immediate value.
-\item U-type instructions are intended to support full 32-bit constant and address construction.
-\item The exact semantics of U-type instructions are defined in the instruction set chapter.
+  \item \code{opcode} is the 6-bit major opcode.
+  \item \code{mode/reserved} selects the constant-construction operation or is reserved.
+  \item \code{imm16} is a 16-bit immediate field.
+  \item \code{rd} is the destination register field.
+  \item U-type instructions are intended to support full 32-bit constant and address construction.
+  \item U-type immediates are interpreted according to the specific instruction.
 \end{itemize}
 
-A typical full-width constant may be constructed using an upper-immediate instruction followed by a lower-immediate operation, for example:
+\noindent
+Examples of U-type operations include:
+
+\begin{itemize}
+  \item \code{lui rd, imm16}
+  \item \code{lli rd, imm16}
+\end{itemize}
+
+\noindent
+A typical full-width constant may be constructed using an upper-immediate instruction followed by a lower-immediate or logical-immediate operation:
 
 \begin{verbatim}
 lui  r1, 0x1234
 ori  r1, r1, 0x5678
 \end{verbatim}
 
-This sequence constructs the value \texttt{0x12345678} in (r1), subject to the exact semantics of \texttt{lui} and \texttt{ori}.
-
-\section{Memory Instruction Formats}
+\noindent
+This sequence constructs the value \code{0x12345678} in \code{r1}, subject to the exact semantics of \code{lui}, \code{ori}, and immediate extension rules.
 
 \subsection{M-Type: Load and Store Operations}
 
-M-type instructions access memory using base-plus-offset addressing.
+M-type instructions access memory using base-plus-offset addressing. The register fields are placed in the least-significant nibbles of the instruction word so that the load/store register and base register remain readable in hexadecimal instruction dumps.
 
 \begin{center}
-\begin{tabular}{llllll}
+\begin{tabular}{lllllll}
 \hline
-Bits & 31--26 & 25--22 & 21--18 & 17--16 & 15--0 \\
+Bits & 31--26 & 25 & 24--23 & 22--8 & 7--4 & 3--0 \\
 \hline
-Field & opcode & rd/rs & base & size & offset16 \\
+Field & \code{opcode} & \code{u/reserved} & \code{size} & \code{offset15} & \code{rd/rs} & \code{base} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item For loads, (rd/rs) is the destination register.
-\item For stores, (rd/rs) is the source register.
-\item (base) is the base address register.
-\item \texttt{offset16} is a signed 16-bit byte offset.
-\item The effective address is (base + signextend(offset16)).
-\item The \texttt{size} field selects the access size.
+  \item \code{opcode} is the 6-bit major opcode.
+  \item Load and store instructions use separate major opcodes.
+  \item For load instructions, bit 25 is the unsigned-load flag.
+  \item For store instructions, bit 25 is reserved and must be zero.
+  \item \code{size} selects the memory access size.
+  \item \code{offset15} is a signed 15-bit byte offset.
+  \item \code{rd/rs} is the destination register field for loads.
+  \item \code{rd/rs} is the source register field for stores.
+  \item \code{base} is the base address register field.
+  \item The effective address is computed as \ensuremath{base + \sext{offset15}}.
 \end{itemize}
+
+\noindent
+The low byte of an M-type instruction contains the register fields. This makes the load/store register and base register directly visible in the least-significant two hexadecimal digits of the instruction word.
+
+\subsubsection{Load Interpretation}
+
+For load instructions, bit 25 selects whether sub-word loads are sign-extended or zero-extended.
 
 \begin{center}
 \begin{tabular}{lll}
 \hline
-Size field & Access size & Description \\
+\code{u} field & Meaning & Applies to \\
 \hline
-\texttt{00} & 8-bit  & byte \\
-\texttt{01} & 16-bit & halfword \\
-\texttt{10} & 32-bit & word \\
-\texttt{11} & reserved & reserved \\
+\code{0} & sign-extend loaded value & byte and halfword loads \\
+\code{1} & zero-extend loaded value & byte and halfword loads \\
 \hline
 \end{tabular}
 \end{center}
 
-Examples of M-type operations include:
+\noindent
+For 32-bit word loads, the unsigned-load flag is ignored and should be encoded as zero by conforming assemblers.
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+Mnemonic & \code{u} & \code{size} & Meaning \\
+\hline
+\code{lb}  & \code{0} & \code{00} & load signed byte \\
+\code{lbu} & \code{1} & \code{00} & load unsigned byte \\
+\code{lh}  & \code{0} & \code{01} & load signed halfword \\
+\code{lhu} & \code{1} & \code{01} & load unsigned halfword \\
+\code{lw}  & \code{0} & \code{10} & load word \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsubsection{Store Interpretation}
+
+For store instructions, bit 25 is reserved and must be zero.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Mnemonic & \code{size} & Meaning \\
+\hline
+\code{sb} & \code{00} & store byte \\
+\code{sh} & \code{01} & store halfword \\
+\code{sw} & \code{10} & store word \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+The \code{size} value \code{11} is reserved for both load and store instructions.
+
+\subsubsection{Addressing Examples}
+
+Examples of M-type load operations include:
 
 \begin{itemize}
-\item \texttt{lb rd, offset(base)}
-\item \texttt{lbu rd, offset(base)}
-\item \texttt{lh rd, offset(base)}
-\item \texttt{lhu rd, offset(base)}
-\item \texttt{lw rd, offset(base)}
-\item \texttt{sb rs, offset(base)}
-\item \texttt{sh rs, offset(base)}
-\item \texttt{sw rs, offset(base)}
+  \item \code{lb rd, offset(base)}
+  \item \code{lbu rd, offset(base)}
+  \item \code{lh rd, offset(base)}
+  \item \code{lhu rd, offset(base)}
+  \item \code{lw rd, offset(base)}
 \end{itemize}
 
-\section{Branch and Jump Formats}
+\noindent
+Examples of M-type store operations include:
 
-VIV-32 supports both flag-based conditional branches and register-comparison branches.
+\begin{itemize}
+  \item \code{sb rs, offset(base)}
+  \item \code{sh rs, offset(base)}
+  \item \code{sw rs, offset(base)}
+\end{itemize}
 
 \subsection{BF-Type: Flag-Based Conditional Branches}
 
-BF-type instructions branch according to the current condition flags in the status register.
+BF-type instructions branch according to the current condition flags in the status register. BF-type instructions do not contain register fields, so the condition field and branch offset occupy the instruction payload.
 
 \begin{center}
 \begin{tabular}{llll}
 \hline
 Bits & 31--26 & 25--22 & 21--0 \\
 \hline
-Field & opcode & cond & offset22 \\
+Field & \code{opcode} & \code{cond} & \code{offset22} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item \texttt{cond} selects a condition-code test.
-\item \texttt{offset22} is a signed PC-relative branch offset.
+\item \code{opcode} is the 6-bit major opcode.
+\item \code{cond} is the 4-bit condition-code field.
+\item \code{offset22} is a signed 22-bit PC-relative branch offset.
 \item Branch offsets are measured in 32-bit instruction words.
 \item The encoded offset is shifted left by two bits to form a byte offset.
 \item The branch target is relative to the address of the instruction following the branch.
+\item BF-type instructions test existing condition flags; they do not perform a new comparison.
+\item BF-type instructions do not update condition flags.
 \end{itemize}
 
-Examples of flag-based branches include:
+\noindent
+Examples of BF-type operations include:
 
-\begin{itemize}
-\item \texttt{b.eq label}
-\item \texttt{b.ne label}
-\item \texttt{b.cs label}
-\item \texttt{b.cc label}
-\item \texttt{b.vs label}
-\item \texttt{b.vc label}
-\item \texttt{b.es label}
-\item \texttt{b.ec label}
-\end{itemize}
+\begin{center}
+\begin{tabular}{ll}
+\hline
+Instruction & Meaning \\
+\hline
+\code{bf.eq label}  & Branch to \code{label} if the zero flag is set. \\
+\code{bf.ne label}  & Branch to \code{label} if the zero flag is clear. \\
+\code{bf.lt label}  & Branch to \code{label} if the existing flags indicate signed less-than. \\
+\code{bf.ge label}  & Branch to \code{label} if the existing flags indicate signed greater-than-or-equal. \\
+\code{bf.ltu label} & Branch to \code{label} if the existing flags indicate unsigned less-than. \\
+\code{bf.geu label} & Branch to \code{label} if the existing flags indicate unsigned greater-than-or-equal. \\
+\code{bf.cs label}  & Branch to \code{label} if the carry flag is set. \\
+\code{bf.cc label}  & Branch to \code{label} if the carry flag is clear. \\
+\code{bf.vs label}  & Branch to \code{label} if the overflow flag is set. \\
+\code{bf.vc label}  & Branch to \code{label} if the overflow flag is clear. \\
+\code{bf.es label}  & Branch to \code{label} if the error flag is set. \\
+\code{bf.ec label}  & Branch to \code{label} if the error flag is clear. \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Flag-based comparison branches such as \code{bf.lt}, \code{bf.le}, \code{bf.gt}, \code{bf.ge}, \code{bf.ltu}, \code{bf.leu}, \code{bf.gtu}, and \code{bf.geu} use this format. These instructions interpret existing flags, most commonly after \code{cmp} or \code{cmpi}.
 
 \subsection{BC-Type: Register-Comparison Branches}
 
-BC-type instructions compare two registers and branch according to the specified comparison.
+BC-type instructions compare two registers and branch according to the specified comparison. The register fields are placed in the least-significant nibbles of the instruction word so that the compared registers remain readable in hexadecimal instruction dumps.
 
 \begin{center}
 \begin{tabular}{llllll}
 \hline
-Bits & 31--26 & 25--22 & 21--18 & 17--14 & 13--0 \\
+Bits & 31--26 & 25--22 & 21--8 & 7--4 & 3--0 \\
 \hline
-Field & opcode & cond & ra & rb & offset14 \\
+Field & \code{opcode} & \code{cond} & \code{offset14} & \code{ra} & \code{rb} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item \texttt{cond} selects the comparison condition.
-\item (ra) is the first comparison register.
-\item (rb) is the second comparison register.
-\item \texttt{offset14} is a signed PC-relative branch offset.
-\item Branch offsets are measured in 32-bit instruction words.
-\item The encoded offset is shifted left by two bits to form a byte offset.
-\item The branch target is relative to the address of the instruction following the branch.
-\item Register-comparison branches may update condition flags if defined by the instruction set chapter.
+  \item \code{opcode} is the 6-bit major opcode.
+  \item \code{cond} is the 4-bit comparison condition-code field.
+  \item \code{offset14} is a signed 14-bit PC-relative branch offset.
+  \item \code{ra} is the first comparison register field.
+  \item \code{rb} is the second comparison register field.
+  \item Branch offsets are measured in 32-bit instruction words.
+  \item The encoded offset is shifted left by two bits to form a byte offset.
+  \item The branch target is relative to the address of the instruction following the branch.
+  \item BC-type instructions compare \code{ra} and \code{rb} directly.
+  \item BC-type instructions do not depend on existing condition flags.
+  \item BC-type instructions do not update condition flags.
 \end{itemize}
 
-Examples of register-comparison branches include:
+\noindent
+The low byte of a BC-type instruction contains the compared register fields. This makes the two comparison operands directly visible in the least-significant two hexadecimal digits of the instruction word.
 
-\begin{itemize}
-\item \texttt{beq ra, rb, label}
-\item \texttt{bne ra, rb, label}
-\item \texttt{blt ra, rb, label}
-\item \texttt{bge ra, rb, label}
-\item \texttt{bltu ra, rb, label}
-\item \texttt{bgeu ra, rb, label}
-\end{itemize}
+\noindent
+Examples of BC-type operations include:
+
+\begin{center}
+\begin{tabular}{ll}
+\hline
+Instruction & Meaning \\
+\hline
+\code{b.eq ra, rb, label}  & Branch to \code{label} if \code{ra} equals \code{rb}. \\
+\code{b.ne ra, rb, label}  & Branch to \code{label} if \code{ra} does not equal \code{rb}. \\
+\code{b.lt ra, rb, label}  & Branch to \code{label} if \code{ra} is less than \code{rb}, treating both as signed values. \\
+\code{b.ge ra, rb, label}  & Branch to \code{label} if \code{ra} is greater than or equal to \code{rb}, treating both as signed values. \\
+\code{b.ltu ra, rb, label} & Branch to \code{label} if \code{ra} is less than \code{rb}, treating both as unsigned values. \\
+\code{b.geu ra, rb, label} & Branch to \code{label} if \code{ra} is greater than or equal to \code{rb}, treating both as unsigned values. \\
+\hline
+\end{tabular}
+\end{center}
 
 \subsection{J-Type: PC-Relative Jump and Call}
 
-J-type instructions perform unconditional PC-relative control transfer.
+J-type instructions perform unconditional PC-relative control transfer. J-type instructions do not contain register fields, so the full instruction payload is available for the PC-relative offset.
 
 \begin{center}
 \begin{tabular}{lll}
 \hline
 Bits & 31--26 & 25--0 \\
 \hline
-Field & opcode & offset26 \\
+Field & \code{opcode} & \code{offset26} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item \texttt{offset26} is a signed PC-relative offset.
-\item Jump offsets are measured in 32-bit instruction words.
-\item The encoded offset is shifted left by two bits to form a byte offset.
-\item The jump target is relative to the address of the instruction following the jump.
+  \item \code{opcode} is the 6-bit major opcode.
+  \item \code{offset26} is a signed 26-bit PC-relative offset.
+  \item Jump offsets are measured in 32-bit instruction words.
+  \item The encoded offset is shifted left by two bits to form a byte offset.
+  \item The jump target is relative to the address of the instruction following the jump or call instruction.
+  \item J-type instructions do not update condition flags.
 \end{itemize}
 
+\noindent
 Examples of J-type operations include:
 
 \begin{itemize}
-\item \texttt{jmp label}
-\item \texttt{call label}
+  \item \code{jmp label}
+  \item \code{call label}
 \end{itemize}
+
+\noindent
+The \code{jmp} instruction changes the program counter to the computed target address. The \code{call} instruction also writes the return address to the architectural link register, \code{r15}.
 
 \subsection{JR-Type: Register-Indirect Jump and Call}
 
-JR-type instructions perform register-indirect control transfer.
+JR-type instructions perform register-indirect control transfer. The register fields are placed in the least-significant nibbles of the instruction word so that the link register and target register remain readable in hexadecimal instruction dumps.
 
 \begin{center}
 \begin{tabular}{lllll}
 \hline
-Bits & 31--26 & 25--22 & 21--18 & 17--0 \\
+Bits & 31--26 & 25--8 & 7--4 & 3--0 \\
 \hline
-Field & opcode & rd/link & target & func/reserved \\
+Field & \code{opcode} & \code{func/reserved} & \code{rd/link} & \code{target} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item (target) contains the target address.
-\item For plain register jumps, (rd/link) is ignored or must be (r0).
-\item For register-indirect calls, (rd/link) receives the return address.
-\item The standard ABI link register is (r15).
-\item Register-indirect targets must be 4-byte aligned.
+  \item \code{opcode} is the 6-bit major opcode.
+  \item \code{func/reserved} selects the register-indirect control-transfer operation or is reserved.
+  \item \code{rd/link} is the destination link register field for register-indirect calls.
+  \item \code{target} is the target address register field.
+  \item For plain register jumps, \code{rd/link} is ignored or must be encoded as \code{r0}.
+  \item For register-indirect calls, \code{rd/link} receives the return address.
+  \item The standard ABI link register is \code{r15}.
+  \item Register-indirect targets must be 4-byte aligned.
+  \item JR-type instructions do not update condition flags.
 \end{itemize}
 
+\noindent
+The low byte of a JR-type instruction contains the register fields. This makes the link register and target register directly visible in the least-significant two hexadecimal digits of the instruction word.
+
+\noindent
 Examples of JR-type operations include:
 
 \begin{itemize}
-\item \texttt{jr target}
-\item \texttt{jalr rd, target}
-\item \texttt{ret}
+  \item \code{jr target}
+  \item \code{jalr rd, target}
+  \item \code{ret}
 \end{itemize}
 
-The \texttt{ret} instruction may be encoded as a distinct instruction or defined as an assembler pseudo-instruction for \texttt{jr r15}.
-
-\section{System Instruction Format}
+\noindent
+The \code{ret} instruction may be encoded as a distinct instruction or defined as an assembler pseudo-instruction for \code{jr r15}. In VIV-32 v0.1, \code{ret} is defined as a pseudo-instruction for \code{jr r15}.
 
 \subsection{X-Type: System and Control Operations}
 
-X-type instructions access system facilities, control registers, traps, and processor state.
+X-type instructions access system facilities, control registers, traps, interrupt state, and processor execution state. The register fields are placed in the least-significant nibbles of the instruction word so that source and destination registers remain readable in hexadecimal instruction dumps.
 
 \begin{center}
 \begin{tabular}{lllll}
 \hline
-Bits & 31--26 & 25--22 & 21--18 & 17--0 \\
+Bits & 31--26 & 25--8 & 7--4 & 3--0 \\
 \hline
-Field & opcode & rd & rs & sysfunc \\
+Field & \code{opcode} & \code{sysfunc} & \code{rd} & \code{rs} \\
 \hline
 \end{tabular}
 \end{center}
 
 \begin{itemize}
-\item (rd) is a destination register when required.
-\item (rs) is a source register when required.
-\item \texttt{sysfunc} selects the system operation.
+  \item \code{opcode} is the 6-bit major opcode.
+  \item \code{sysfunc} is an 18-bit field divided into \code{sysop} and \code{payload}.
+  \item \code{sysop} selects the system or control operation.
+  \item \code{payload} supplies operation-specific data, such as a trap immediate or control-register number.  
+  \item \code{rd} is the destination register field when required.
+  \item \code{rs} is the source register field when required.
+  \item Instructions that do not require \code{rd} or \code{rs} must encode unused register fields as \code{r0}.
+  \item X-type instructions do not update condition flags unless explicitly specified by the instruction set chapter.
 \end{itemize}
 
+\noindent
+The low byte of an X-type instruction contains the register fields. This makes the source and destination registers directly visible in the least-significant two hexadecimal digits of the instruction word.
+
+\noindent
 Examples of X-type operations include:
 
 \begin{itemize}
-\item \texttt{nop}
-\item \texttt{halt}
-\item \texttt{trap imm}
-\item \texttt{syscall}
-\item \texttt{iret}
-\item \texttt{ei}
-\item \texttt{di}
-\item \texttt{rdpc rd}
-\item \texttt{mrs rd, sr}
-\item \texttt{msr sr, rs}
+  \item \code{nop}
+  \item \code{halt}
+  \item \code{trap imm}
+  \item \code{syscall}
+  \item \code{iret}
+  \item \code{ei}
+  \item \code{di}
+  \item \code{rdpc rd}
+  \item \code{mrs rd, cr}
+  \item \code{msr cr, rs}
 \end{itemize}
 
-The \texttt{syscall} instruction is a specialised software trap used by the operating environment. It may share trap machinery internally, but it is exposed as a distinct assembly instruction.
+\noindent
+For control-register access instructions, the selected control register is encoded in the \code{creg4} field within the X-type \code{payload}. The \code{rd} and \code{rs} fields are used only for the general-purpose register operand.
+The detailed interpretation of \code{sysfunc}, including \code{sysop}, \code{payload}, \code{trapimm12}, and \code{creg4}, is defined in the system and control encoding section.
+
+\section{Major Opcode Map}
+
+The 6-bit \code{opcode} field identifies the primary instruction class. Most instruction classes use additional fields, such as \code{func}, \code{mode}, \code{cond}, or \code{sysfunc}, to select the specific instruction within that class.
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+Opcode & Format & Class & Instructions \\
+\hline
+\code{0x00} & X & System/control &
+\begin{tabular}[t]{@{}l@{}}
+\code{nop}, \code{halt}, \code{trap}, \code{syscall}, \code{iret}, \code{ei}, \\
+\code{di}, \code{rdpc}, \code{mrs}, \code{msr}
+\end{tabular} \\
+\code{0x01} & R  & Register ALU & \code{add}, \code{sub}, \code{and}, \code{or}, \code{xor}, \code{not}, \code{neg}, \code{cmp} \\
+\code{0x02} & I  & Immediate arithmetic/compare & \code{addi}, \code{subi}, \code{cmpi} \\
+\code{0x03} & I  & Immediate logical & \code{andi}, \code{ori}, \code{xori} \\
+\code{0x04} & R  & Register shifts & \code{shl}, \code{shr}, \code{sar} \\
+\code{0x05} & I  & Immediate shifts & \code{shli}, \code{shri}, \code{sari} \\
+\code{0x06} & I  & Bit immediate & \code{btst}, \code{bset}, \code{bclr}, \code{btgl} \\
+\code{0x07} & R2 & Multiply/divide & \code{mul}, \code{mulu}, \code{div}, \code{divu} \\
+\code{0x08} & U  & Constant construction & \code{lui}, \code{lli} \\
+\code{0x09} & M  & Load & \code{lb}, \code{lbu}, \code{lh}, \code{lhu}, \code{lw} \\
+\code{0x0A} & M  & Store & \code{sb}, \code{sh}, \code{sw} \\
+\code{0x0B} & BF & Flag branch & \code{bf.*} \\
+\code{0x0C} & BC & Register branch & \code{b.*} \\
+\code{0x0D} & J  & PC-relative jump & \code{jmp} \\
+\code{0x0E} & J  & PC-relative call & \code{call} \\
+\code{0x0F} & JR & Register jump/call & \code{jr}, \code{jalr} \\
+\code{0x10--0x3F} & -- & Reserved & Reserved for future extensions \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Opcode values not listed as assigned are reserved. Reserved opcode values must not be emitted by conforming assemblers. Executing an instruction with a reserved opcode raises an illegal-instruction exception.
+
+\noindent
+The opcode map is provisional in VIV-32 v0.1. Opcode assignments should be considered unstable until the assembler, reference emulator, and machine-readable ISA specification are implemented.
+
+\section{Class-Specific Encoding Values}
+
+This section defines the class-specific function and mode fields used by the instruction classes listed in the major opcode map.
+
+\subsection{Register ALU Function Codes}
+
+Register ALU instructions use opcode \code{0x01} and the R-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{func} value & Mnemonic & Meaning \\
+\hline
+\code{0x0000} & \code{add} & Add registers \\
+\code{0x0001} & \code{sub} & Subtract registers \\
+\code{0x0002} & \code{and} & Bitwise AND \\
+\code{0x0003} & \code{or}  & Bitwise OR \\
+\code{0x0004} & \code{xor} & Bitwise XOR \\
+\code{0x0005} & \code{not} & Bitwise NOT \\
+\code{0x0006} & \code{neg} & Negate register \\
+\code{0x0007} & \code{cmp} & Compare registers \\
+\code{0x0008--0x3FFF} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+For \code{not}, the \code{rb} field is reserved and must be encoded as \code{r0} by conforming assemblers.
+
+\noindent
+For \code{neg}, the \code{rb} field is reserved and must be encoded as \code{r0} by conforming assemblers.
+
+\noindent
+For \code{cmp}, the \code{rd} field is reserved and must be encoded as \code{r0} by conforming assemblers. The instruction updates condition flags but does not write a general-purpose register.
+
+\subsection{Immediate Arithmetic and Compare Mode Codes}
+
+Immediate arithmetic and compare instructions use opcode \code{0x02} and the I-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{mode} value & Mnemonic & Meaning \\
+\hline
+\code{0x0} & \code{addi} & Add sign-extended immediate \\
+\code{0x1} & \code{subi} & Subtract sign-extended immediate \\
+\code{0x2} & \code{cmpi} & Compare with sign-extended immediate \\
+\code{0x3} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+For \code{cmpi}, the \code{rd} field is reserved and must be encoded as \code{r0} by conforming assemblers. The instruction updates condition flags but does not write a general-purpose register.
+
+\subsection{Immediate Logical Mode Codes}
+
+Immediate logical instructions use opcode \code{0x03} and the I-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{mode} value & Mnemonic & Meaning \\
+\hline
+\code{0x0} & \code{andi} & Bitwise AND with sign-extended immediate \\
+\code{0x1} & \code{ori}  & Bitwise OR with sign-extended immediate \\
+\code{0x2} & \code{xori} & Bitwise XOR with sign-extended immediate \\
+\code{0x3} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{Register Shift Function Codes}
+
+Register shift instructions use opcode \code{0x04} and the R-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{func} value & Mnemonic & Meaning \\
+\hline
+\code{0x0000} & \code{shl} & Logical shift left by register count \\
+\code{0x0001} & \code{shr} & Logical shift right by register count \\
+\code{0x0002} & \code{sar} & Arithmetic shift right by register count \\
+\code{0x0003--0x3FFF} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+The shift count is taken from the low 5 bits of the \code{rb} register.
+
+\subsection{Immediate Shift Mode Codes}
+
+Immediate shift instructions use opcode \code{0x05} and the I-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{mode} value & Mnemonic & Meaning \\
+\hline
+\code{0x0} & \code{shli} & Logical shift left by immediate count \\
+\code{0x1} & \code{shri} & Logical shift right by immediate count \\
+\code{0x2} & \code{sari} & Arithmetic shift right by immediate count \\
+\code{0x3} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Immediate shift instructions use the low 5 bits of \code{imm16} as the shift count. The remaining bits of \code{imm16} are reserved and must be zero in conforming encodings.
+
+\subsection{Bit Immediate Mode Codes}
+
+Bit immediate instructions use opcode \code{0x06} and the I-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{mode} value & Mnemonic & Meaning \\
+\hline
+\code{0x0} & \code{btst} & Test immediate bit index \\
+\code{0x1} & \code{bset} & Set immediate bit index \\
+\code{0x2} & \code{bclr} & Clear immediate bit index \\
+\code{0x3} & \code{btgl} & Toggle immediate bit index \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Bit immediate instructions use the low 5 bits of \code{imm16} as the bit index. The remaining bits of \code{imm16} are reserved and must be zero in conforming encodings.
+
+\noindent
+For \code{btst}, the \code{rd} field is reserved and must be encoded as \code{r0} by conforming assemblers. The instruction updates condition flags but does not write a general-purpose register.
+
+\subsection{Multiply and Divide Function Codes}
+
+Multiply and divide instructions use opcode \code{0x07} and the R2-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{func} value & Mnemonic & Meaning \\
+\hline
+\code{0x000} & \code{mul}  & Signed full-width multiply \\
+\code{0x001} & \code{mulu} & Unsigned full-width multiply \\
+\code{0x002} & \code{div}  & Signed divide with remainder \\
+\code{0x003} & \code{divu} & Unsigned divide with remainder \\
+\code{0x004--0x3FF} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+For multiply instructions, \code{rd0} receives the low 32 bits of the product and \code{rd1} receives the high 32 bits of the product.
+
+\noindent
+For divide instructions, \code{rd0} receives the quotient and \code{rd1} receives the remainder.
+
+\subsection{Constant Construction Mode Codes}
+
+Constant construction instructions use opcode \code{0x08} and the U-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{mode} value & Mnemonic & Meaning \\
+\hline
+\code{0x00} & \code{lui} & Load upper immediate \\
+\code{0x01} & \code{lli} & Load lower immediate \\
+\code{0x02--0x3F} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+For \code{lui}, the \code{imm16} field is placed in bits 31--16 of the destination register and bits 15--0 are cleared.
+
+\noindent
+For \code{lli}, the \code{imm16} field is zero-extended and written to the destination register.
+
+\section{Memory Encoding Values}
+
+Memory instructions use the M-type instruction format. Load instructions use opcode \code{0x09}. Store instructions use opcode \code{0x0A}.
+
+\subsection{Load Encoding}
+
+Load instructions use opcode \code{0x09}. The \code{u} field selects whether sub-word loads are sign-extended or zero-extended.
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+Mnemonic & \code{u} & \code{size} & Meaning \\
+\hline
+\code{lb}  & \code{0} & \code{00} & Load byte and sign-extend to 32 bits \\
+\code{lbu} & \code{1} & \code{00} & Load byte and zero-extend to 32 bits \\
+\code{lh}  & \code{0} & \code{01} & Load halfword and sign-extend to 32 bits \\
+\code{lhu} & \code{1} & \code{01} & Load halfword and zero-extend to 32 bits \\
+\code{lw}  & \code{0} & \code{10} & Load word \\
+\code{--}  & \code{1} & \code{10} & Reserved \\
+\code{--}  & \code{0} & \code{11} & Reserved \\
+\code{--}  & \code{1} & \code{11} & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+For byte and halfword loads, the loaded value is extended to 32 bits according to the \code{u} field.
+
+\noindent
+For word loads, the loaded value is already 32 bits wide. The \code{u} field is reserved and must be encoded as \code{0} by conforming assemblers.
+
+\noindent
+Executing a load instruction with a reserved \code{u}/\code{size} combination raises an illegal-instruction exception.
+
+\subsection{Store Encoding}
+
+Store instructions use opcode \code{0x0A}. For store instructions, the \code{u/reserved} field is reserved and must be encoded as \code{0}.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Mnemonic & \code{size} & Meaning \\
+\hline
+\code{sb} & \code{00} & Store byte \\
+\code{sh} & \code{01} & Store halfword \\
+\code{sw} & \code{10} & Store word \\
+\code{--} & \code{11} & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Executing a store instruction with \code{u/reserved} set to \code{1} raises an illegal-instruction exception.
+
+\noindent
+Executing a store instruction with \code{size} set to \code{11} raises an illegal-instruction exception.
+
+\subsection{Memory Access Size Field}
+
+The \code{size} field has the same basic interpretation for load and store instructions.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{size} value & Access size & Alignment requirement \\
+\hline
+\code{00} & Byte & Any address \\
+\code{01} & Halfword & 2-byte aligned address \\
+\code{10} & Word & 4-byte aligned address \\
+\code{11} & Reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Misaligned halfword and word memory accesses raise a misaligned-access exception. Byte accesses are always naturally aligned.
+
+\section{Branch Condition Codes}
+
+Branch instructions use a 4-bit \code{cond} field to select the branch condition. The same condition-code values are used by BF-type flag-based branches and BC-type register-comparison branches wherever the condition is meaningful for both forms.
+
+\subsection{Condition Code Summary}
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+\code{cond} value & Suffix & Signedness & Meaning \\
+\hline
+\code{0x0} & \code{eq}  & --       & Equal \\
+\code{0x1} & \code{ne}  & --       & Not equal \\
+\code{0x2} & \code{lt}  & signed   & Less than \\
+\code{0x3} & \code{le}  & signed   & Less than or equal \\
+\code{0x4} & \code{gt}  & signed   & Greater than \\
+\code{0x5} & \code{ge}  & signed   & Greater than or equal \\
+\code{0x6} & \code{ltu} & unsigned & Less than \\
+\code{0x7} & \code{leu} & unsigned & Less than or equal \\
+\code{0x8} & \code{gtu} & unsigned & Greater than \\
+\code{0x9} & \code{geu} & unsigned & Greater than or equal \\
+\code{0xA} & \code{cs}  & flag     & Carry set \\
+\code{0xB} & \code{cc}  & flag     & Carry clear \\
+\code{0xC} & \code{vs}  & flag     & Overflow set \\
+\code{0xD} & \code{vc}  & flag     & Overflow clear \\
+\code{0xE} & \code{es}  & flag     & Error set \\
+\code{0xF} & \code{ec}  & flag     & Error clear \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+The condition-code suffix is appended to the branch mnemonic. For example, \code{bf.eq} uses condition code \code{0x0}, and \code{b.ltu} uses condition code \code{0x6}.
+
+\subsection{Flag-Based Branch Conditions}
+
+BF-type instructions use opcode \code{0x0B}. The \code{cond} field is interpreted using the current condition flags in the status register.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Suffix & Branch is taken when & Typical use \\
+\hline
+\code{eq}  & \flagZ{} is set & Equal after compare \\
+\code{ne}  & \flagZ{} is clear & Not equal after compare \\
+\code{lt}  & \flagN{} differs from \flagV{} & Signed less than after compare \\
+\code{le}  & \flagZ{} is set or \flagN{} differs from \flagV{} & Signed less/equal after compare \\
+\code{gt}  & \flagZ{} is clear and \flagN{} equals \flagV{} & Signed greater than after compare \\
+\code{ge}  & \flagN{} equals \flagV{} & Signed greater/equal after compare \\
+\code{ltu} & \flagC{} is clear & Unsigned less than after compare \\
+\code{leu} & \flagC{} is clear or \flagZ{} is set & Unsigned less/equal after compare \\
+\code{gtu} & \flagC{} is set and \flagZ{} is clear & Unsigned greater than after compare \\
+\code{geu} & \flagC{} is set & Unsigned greater/equal after compare \\
+\code{cs}  & \flagC{} is set & Carry set \\
+\code{cc}  & \flagC{} is clear & Carry clear \\
+\code{vs}  & \flagV{} is set & Overflow set \\
+\code{vc}  & \flagV{} is clear & Overflow clear \\
+\code{es}  & \flagE{} is set & Error set \\
+\code{ec}  & \flagE{} is clear & Error clear \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Flag-based signed and unsigned comparison branches are normally used after \code{cmp} or \code{cmpi}. They test the existing flags and do not perform a new comparison.
+
+\subsection{Register-Comparison Branch Conditions}
+
+BC-type instructions use opcode \code{0x0C}. The \code{cond} field selects a direct comparison between \code{ra} and \code{rb}.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Suffix & Branch is taken when & Comparison type \\
+\hline
+\code{eq}  & \code{ra == rb} & Equality \\
+\code{ne}  & \code{ra != rb} & Equality \\
+\code{lt}  & \code{ra < rb}  & Signed \\
+\code{le}  & \code{ra <= rb} & Signed \\
+\code{gt}  & \code{ra > rb}  & Signed \\
+\code{ge}  & \code{ra >= rb} & Signed \\
+\code{ltu} & \code{ra < rb}  & Unsigned \\
+\code{leu} & \code{ra <= rb} & Unsigned \\
+\code{gtu} & \code{ra > rb}  & Unsigned \\
+\code{geu} & \code{ra >= rb} & Unsigned \\
+\code{cs}  & -- & Reserved for BC-type \\
+\code{cc}  & -- & Reserved for BC-type \\
+\code{vs}  & -- & Reserved for BC-type \\
+\code{vc}  & -- & Reserved for BC-type \\
+\code{es}  & -- & Reserved for BC-type \\
+\code{ec}  & -- & Reserved for BC-type \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+BC-type instructions do not read or update the condition flags. Condition-code values \code{0xA}--\code{0xF} are reserved for BC-type instructions.
+
+\section{Jump and Call Encoding Values}
+
+\subsection{PC-Relative Jump and Call Opcodes}
+
+PC-relative jump and call instructions use the J-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Opcode & Mnemonic & Meaning \\
+\hline
+\code{0x0D} & \code{jmp}  & PC-relative unconditional jump \\
+\code{0x0E} & \code{call} & PC-relative call using \code{r15} as the link register \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Both instructions use the signed \code{offset26} field. The encoded offset is measured in 32-bit instruction words and is shifted left by two bits to form the byte offset. The target address is relative to the address of the instruction following the jump or call.
+
+\noindent
+For \code{call}, the return address is written to the architectural link register, \code{r15}.
+
+\subsection{Register-Indirect Jump and Call Function Codes}
+
+Register-indirect jump and call instructions use opcode \code{0x0F} and the JR-type instruction format.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{func} value & Mnemonic & Meaning \\
+\hline
+\code{0x00000} & \code{jr}   & Jump to address in \code{target} \\
+\code{0x00001} & \code{jalr} & Jump to address in \code{target} and write link register \\
+\code{0x00002--0x3FFFF} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+For \code{jr}, the \code{rd/link} field is reserved and must be encoded as \code{r0} by conforming assemblers.
+
+\noindent
+For \code{jalr}, the \code{rd/link} field selects the destination link register. The standard ABI link register is \code{r15}.
+
+\noindent
+Register-indirect targets must be 4-byte aligned. A misaligned register-indirect target raises a misaligned-access exception or illegal-control-transfer exception, as defined by the exception chapter.
+
+\section{System and Control Encoding Values}
+
+System and control instructions use opcode \code{0x00} and the X-type instruction format. The 18-bit \code{sysfunc} field is divided into a system operation field and a payload field.
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+Bits within \code{sysfunc} & Instruction bits & Field & Meaning \\
+\hline
+17--12 & 25--20 & \code{sysop} & System operation selector \\
+11--0  & 19--8  & \code{payload} & Operation-specific payload \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+The interpretation of \code{payload} depends on the selected \code{sysop}. For instructions that do not use a payload, the \code{payload} field is reserved and must be encoded as zero by conforming assemblers.
+
+\subsection{System Operation Codes}
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{sysop} value & Mnemonic & Meaning \\
+\hline
+\code{0x00} & \code{nop}     & No operation \\
+\code{0x01} & \code{halt}    & Halt processor execution \\
+\code{0x02} & \code{trap}    & Raise software trap \\
+\code{0x03} & \code{syscall} & Raise system-call exception \\
+\code{0x04} & \code{iret}    & Return from interrupt or exception \\
+\code{0x05} & \code{ei}      & Enable maskable interrupts \\
+\code{0x06} & \code{di}      & Disable maskable interrupts \\
+\code{0x07} & \code{rdpc}    & Read program counter \\
+\code{0x08} & \code{mrs}     & Move from control register \\
+\code{0x09} & \code{msr}     & Move to control register \\
+\code{0x0A--0x3F} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\subsection{System Payload Encoding}
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+Mnemonic & \code{sysop} & \code{payload} use & Payload requirement \\
+\hline
+\code{nop}     & \code{0x00} & Unused & Must be zero \\
+\code{halt}    & \code{0x01} & Unused & Must be zero \\
+\code{trap}    & \code{0x02} & \code{trapimm12} & Software-defined trap immediate \\
+\code{syscall} & \code{0x03} & Unused & Must be zero \\
+\code{iret}    & \code{0x04} & Unused & Must be zero \\
+\code{ei}      & \code{0x05} & Unused & Must be zero \\
+\code{di}      & \code{0x06} & Unused & Must be zero \\
+\code{rdpc}    & \code{0x07} & Unused & Must be zero \\
+\code{mrs}     & \code{0x08} & \code{creg4} & Bits 11--4 must be zero \\
+\code{msr}     & \code{0x09} & \code{creg4} & Bits 11--4 must be zero \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+For \code{trap}, the 12-bit \code{payload} field is interpreted as an unsigned software trap immediate, \code{trapimm12}. The trap immediate is reported to the exception handler as part of the software trap cause information.
+
+\noindent
+For \code{mrs} and \code{msr}, the low 4 bits of \code{payload} encode the selected control register. The upper 8 bits of \code{payload} are reserved and must be encoded as zero by conforming assemblers.
+
+\subsection{System Instruction Register Fields}
+
+\begin{center}
+\begin{tabular}{llll}
+\hline
+Mnemonic & \code{rd} & \code{rs} & Register-field use \\
+\hline
+\code{nop}     & \code{r0} & \code{r0} & Unused \\
+\code{halt}    & \code{r0} & \code{r0} & Unused \\
+\code{trap}    & \code{r0} & \code{r0} & Unused \\
+\code{syscall} & \code{r0} & \code{r0} & Unused \\
+\code{iret}    & \code{r0} & \code{r0} & Unused \\
+\code{ei}      & \code{r0} & \code{r0} & Unused \\
+\code{di}      & \code{r0} & \code{r0} & Unused \\
+\code{rdpc}    & destination & \code{r0} & \code{rd} receives the program counter value \\
+\code{mrs}     & destination & \code{r0} & \code{rd} receives the selected control-register value \\
+\code{msr}     & \code{r0} & source & \code{rs} supplies the value written to the selected control register \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+For instructions that do not use \code{rd} or \code{rs}, unused register fields must be encoded as \code{r0} by conforming assemblers.
+
+\subsection{Control Register Numbers}
+
+Control-register access instructions use the low 4 bits of the X-type \code{payload} field to select a control register.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{creg4} value & Name & Meaning \\
+\hline
+\code{0x0} & \code{pc}     & Program counter \\
+\code{0x1} & \code{sr}     & Status register \\
+\code{0x2} & \code{epc}    & Exception program counter \\
+\code{0x3} & \code{ecause} & Exception cause \\
+\code{0x4} & \code{eaddr}  & Exception address \\
+\code{0x5} & \code{evbase} & Exception vector base address \\
+\code{0x6--0xF} & reserved & Reserved \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Executing \code{mrs} or \code{msr} with a reserved \code{creg4} value raises an illegal-instruction exception.
 
 \section{NOP Encoding}
 
-\begin{itemize}
-\item The all-zero instruction word \texttt{0x00000000} encodes \texttt{nop}.
-\item \texttt{nop} performs no architectural state change except advancing the program counter.
-\item \texttt{nop} does not modify condition flags.
-\end{itemize}
+VIV-32 defines the all-zero instruction word as \code{nop}.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Field & Value & Meaning \\
+\hline
+\code{opcode} & \code{0x00} & X-type system/control instruction \\
+\code{sysop} & \code{0x00} & \code{nop} \\
+\code{payload} & \code{0x000} & Unused \\
+\code{rd} & \code{r0} & Unused \\
+\code{rs} & \code{r0} & Unused \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+The complete encoding of \code{nop} is therefore:
+
+\begin{center}
+\code{0x00000000}
+\end{center}
+
+\noindent
+This guarantee allows zero-filled memory to decode as a valid no-operation instruction. It also provides a safe default encoding for padding and alignment.
 
 \section{Flag Update Policy}
 
-\begin{itemize}
-\item Arithmetic and logical instructions update condition flags by default.
-\item Comparison instructions update condition flags without storing a result.
-\item Load and store instructions do not update condition flags.
-\item Branch, jump, call, and return instructions do not update condition flags.
-\item System instructions update condition flags only when explicitly specified.
-\end{itemize}
+Instruction encodings do not contain a general flag-update bit in VIV-32 v0.1. Whether an instruction updates condition flags is defined by the instruction semantics in Chapter~5.
+
+Arithmetic, logical, comparison, shift, bit-test, multiply, and divide instructions update flags as specified by their instruction definitions. Memory, branch, jump, call, and most system/control instructions do not update flags unless explicitly stated.
 
 \section{Reserved Encodings}
 
-\begin{itemize}
-\item Encodings not defined by VIV-32 v0.1 are reserved.
-\item Reserved encodings must not be generated by conforming assemblers.
-\item Executing a reserved encoding has illegal-instruction behaviour.
-\item In VIV-32 v0.1, illegal instructions halt the machine.
-\end{itemize}
+Reserved opcode values, function codes, mode codes, condition codes, size values, system operation codes, payload bits, control-register numbers, and register-field combinations must not be emitted by conforming assemblers.
+
+Unless otherwise specified, executing an instruction with a reserved encoding raises an illegal-instruction exception.

@@ -1,0 +1,120 @@
+\section{Reset Model}
+
+Reset places the processor into a known architectural state and begins instruction execution from the reset vector.
+
+VIV-32 v0.1 defines only machine-mode reset. User-mode reset, supervisor-mode reset, secure boot, and multi-stage privilege transitions are reserved for future versions.
+
+\section{Reset Vector}
+
+On reset, the program counter is set to the architectural reset vector.
+
+\begin{center}
+\code{PC = 0x00000000}
+\end{center}
+
+\noindent
+The reset vector address must be 4-byte aligned. The platform must ensure that executable reset code is available at the reset vector address.
+
+\noindent
+A platform may implement the reset vector using ROM, RAM preloaded by an emulator, memory-mapped boot firmware, or another platform-defined boot mechanism.
+
+\section{Reset State}
+
+After reset, architectural state is initialized as follows:
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+State & Reset value & Notes \\
+\hline
+\code{PC} & \code{0x00000000} & Reset vector \\
+\code{r0} & \code{0x00000000} & Hardwired zero \\
+\code{r1--r15} & Undefined & Software must initialize before use \\
+\code{sr.N} & \code{0} & Negative flag cleared \\
+\code{sr.Z} & \code{0} & Zero flag cleared \\
+\code{sr.C} & \code{0} & Carry flag cleared \\
+\code{sr.V} & \code{0} & Overflow flag cleared \\
+\code{sr.E} & \code{0} & Arithmetic error flag cleared \\
+\code{sr.IE} & \code{0} & Interrupts disabled \\
+\code{epc} & Undefined & No exception has been taken \\
+\code{ecause} & \code{0x00} & Reset cause \\
+\code{eaddr} & \code{0x00000000} & No fault address \\
+\code{evbase} & Platform-defined & Must be initialized before exceptions handling is used \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+General-purpose registers other than \code{r0} are undefined after reset. Boot code must initialize \code{sp}, global pointers, frame pointers, and any other registers required by the ABI or execution environment.
+
+\section{Reset Cause}
+
+Reset is represented architecturally by exception cause value \code{0x00}. After reset, \code{ecause} contains \code{0x00}.
+
+\noindent
+Reset does not require the processor to enter through the ordinary exception vector calculation. On reset, execution begins directly at the reset vector.
+
+\section{Initial Interrupt State}
+
+Interrupts are disabled after reset.
+
+\begin{itemize}
+\item The \code{IE} bit in \code{sr} is cleared.
+\item Timer interrupts are not taken until software enables interrupts.
+\item External interrupts are not taken until software enables interrupts.
+\item Pending interrupt state, if any, is platform-defined.
+\end{itemize}
+
+\noindent
+Boot firmware should initialize \code{evbase}, configure platform interrupt devices, install exception handlers, and then enable interrupts using \code{ei} when ready.
+
+\section{Initial Memory State}
+
+The contents of RAM after reset are platform-defined.
+
+\begin{itemize}
+\item RAM may contain undefined data.
+\item ROM or boot firmware contents are platform-defined.
+\item Memory-mapped device reset state is defined by the platform specification.
+\item The base ISA does not require memory to be cleared on reset.
+\end{itemize}
+
+\noindent
+Software must not assume that RAM is zero-filled unless the platform specification explicitly guarantees it.
+
+\section{Boot Responsibilities}
+
+The base architecture defines only the architectural reset state. Platform firmware or emulator boot code is responsible for preparing the execution environment.
+
+Typical boot responsibilities include:
+
+\begin{itemize}
+\item initializing the stack pointer;
+\item initializing \code{evbase};
+\item installing exception and interrupt handlers;
+\item clearing or initializing the \code{.bss} region;
+\item initializing global data;
+\item configuring memory-mapped devices;
+\item configuring timer and external interrupt sources;
+\item enabling interrupts when the system is ready;
+\item transferring control to firmware, a monitor, a kernel, or a standalone program.
+\end{itemize}
+
+\section{Boot Sequence Example}
+
+A simple platform boot sequence may perform the following operations:
+
+\begin{enumerate}
+\item Begin execution at \code{0x00000000}.
+\item Disable interrupts using \code{di}.
+\item Initialize \code{sp}.
+\item Initialize \code{evbase}.
+\item Install or verify exception vector contents.
+\item Initialize memory and global data.
+\item Configure platform devices.
+\item Enable interrupts using \code{ei}, if required.
+\item Transfer control to the main program.
+\end{enumerate}
+
+\noindent
+This sequence is illustrative. The exact boot sequence is defined by the platform and execution environment.

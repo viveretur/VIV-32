@@ -39,7 +39,7 @@
   \item Memory operand policy: arithmetic and logical instructions do not operate directly on memory operands.
   \item Immediate sizes: defined per instruction format.
   \item Branch offset unit: 32-bit instruction words, shifted left by two bits to form byte offsets.
-  \item Branch range: to be determined by the branch instruction format.
+  \item Branch range: BF-type branches use \code{offset22}; BC-type branches use \code{offset14}.
   \item Opcode extension policy: reserve opcode space for future architectural extensions.
   \item Possible future extensions include:
   \begin{itemize}
@@ -109,7 +109,7 @@
   \item Flag update behaviour is defined per instruction.
   \item Multiplication in v0.1: yes.
   \item Division in v0.1: yes.
-  \item Floating point in v0.1: planned, but exact floating-point details are deferred until the integer ISA is stable.
+  \item Floating point in v0.1: no. Floating point is reserved for a future extension after the integer ISA is stable.
   \item Atomic instructions in v0.1: no.
   \item Atomic instructions are deferred to a later multiprocessing/shared-memory extension.
   \item Bit manipulation instructions in v0.1: yes.
@@ -134,8 +134,8 @@
   \item Halfword accesses must be aligned to a 2-byte boundary.
   \item Word accesses must be aligned to a 4-byte boundary.
   \item 64-bit ABI values stored in memory should be aligned to an 8-byte boundary.
-  \item Misaligned halfword or word accesses raise a misaligned access exception if exception handling is enabled.
-  \item If exception handling is not enabled, misaligned access halts the machine.
+  \item Misaligned access behaviour: misaligned halfword or word accesses raise a misaligned access exception.
+  \item If a valid exception vector is unavailable, a misaligned access halts the machine.  
   \item VIV-32 v0.1 defines no cache architecture.
   \item All memory accesses are treated as direct accesses to memory or memory-mapped devices.
   \item VIV-32 uses memory-mapped I/O.
@@ -164,7 +164,7 @@
 \begin{itemize}
   \item Privilege model: VIV-32 v0.1 defines machine mode only.
   \item User and supervisor modes are reserved for future versions.
-  \item Reset vector: to be defined.
+  \item Reset vector: \code{0x00000000}; reset begins directly at the reset vector rather than through the exception vector table.  
   \item Exception vector model: VIV-32 uses a vector base register and cause-specific vector offsets.
   \item The exact vector layout is defined by the architecture.
   \item Interrupt vector model: timer interrupts and external interrupts transfer control through the exception vector mechanism.
@@ -181,7 +181,7 @@
   \item Return-from-interrupt instruction: VIV-32 defines an interrupt-return instruction which resumes execution from the saved exception program counter.
   \item Timer interrupt: supported in VIV-32 v0.1.
   \item External interrupt: reserved for platform devices.
-  \item Illegal instruction behaviour: illegal instructions halt the machine in VIV-32 v0.1.
+  \item Illegal instruction behaviour: illegal instructions raise an illegal-instruction exception. If exception handling is unavailable, the machine halts.  
   \item Misaligned access behaviour: misaligned halfword or word accesses raise a misaligned access exception if exception handling is enabled.
   \item If exception handling is not enabled, misaligned access halts the machine.
   \item Divide-by-zero behaviour: integer divide-by-zero does not trap in VIV-32 v0.1.

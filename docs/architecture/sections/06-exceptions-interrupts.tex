@@ -1,0 +1,264 @@
+\section{Exception and Interrupt Model}
+
+VIV-32 uses a single exception and interrupt entry mechanism. Synchronous exceptions, software traps, system calls, and hardware interrupts all transfer control through the exception vector mechanism.
+
+\begin{itemize}
+\item Exceptions are identified by an exception cause code.
+\item The exception cause code is written to \code{ecause}.
+\item The exception return address or faulting instruction address is written to \code{epc}.
+\item The associated fault address, when applicable, is written to \code{eaddr}.
+\item Control transfers to a vector address derived from \code{evbase} and \code{ecause}.
+\end{itemize}
+
+\noindent
+VIV-32 v0.1 defines machine mode only. User mode, supervisor mode, privilege transitions, nested privilege stacks, and memory protection are reserved for future versions.
+
+\section{Exception Causes}
+
+The \code{ecause} control register records the cause of the most recent exception or interrupt.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+\code{ecause} value & Cause & Description \\
+\hline
+\code{0x00} & Reset & Reset entry \\
+\code{0x01} & Illegal instruction & Undefined or reserved instruction encoding \\
+\code{0x02} & Misaligned instruction fetch & Instruction fetch from a non-4-byte-aligned address \\
+\code{0x03} & Misaligned data access & Misaligned halfword or word load/store \\
+\code{0x04} & Software trap & \code{trap} instruction \\
+\code{0x05} & System call & \code{syscall} instruction \\
+\code{0x06} & Timer interrupt & Platform timer interrupt \\
+\code{0x07} & External interrupt & Platform external interrupt \\
+\code{0x08--0xFF} & Reserved & Reserved for future architectural or platform causes \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+Cause values above \code{0xFF} are reserved in VIV-32 v0.1. Future versions may define additional architectural, platform, or implementation-specific exception causes.
+
+\section{Exception Vector Calculation}
+
+The \code{evbase} control register contains the base address of the exception vector table. Each exception cause has a 16-byte vector slot.
+
+\begin{center}
+\ensuremath{vector_address \assign evbase + (\code{ecause} \shleft 4)}
+\end{center}
+
+\noindent
+Equivalently, the vector address is:
+
+\begin{center}
+\ensuremath{vector_address \assign evbase + \code{ecause} \times 16}
+\end{center}
+
+\noindent
+The \code{evbase} register must contain a 16-byte-aligned address. Exception vector addresses are instruction addresses and must be 4-byte aligned.
+
+\begin{itemize}
+\item Each vector slot is 16 bytes.
+\item Each vector slot can contain up to four 32-bit instructions.
+\item A vector slot may contain a short handler directly.
+\item A vector slot may contain a jump to a longer handler elsewhere.
+\end{itemize}
+
+\section{Exception Entry Sequence}
+
+When an exception or interrupt is taken, the processor performs the following architectural actions:
+
+\begin{enumerate}
+\item Determine the exception cause.
+\item Write the exception cause code to \code{ecause}.
+\item Write the exception program counter value to \code{epc}.
+\item Write the exception address to \code{eaddr}, if applicable.
+\item Clear the interrupt-enable bit in \code{sr}.
+\item Set the program counter to \ensuremath{evbase + (\code{ecause} \shleft 4)}.
+\end{enumerate}
+
+\noindent
+Clearing the interrupt-enable bit prevents maskable interrupts from interrupting the initial exception handler sequence. Software may re-enable interrupts explicitly after saving any required state.
+
+\section{Exception Program Counter}
+
+The value written to \code{epc} depends on the exception or interrupt type.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Event type & \code{epc} value & Rationale \\
+\hline
+Illegal instruction & Faulting instruction address & Re-execution is possible after emulation or patching \\
+Misaligned instruction fetch & Faulting instruction address & The fault is associated with the attempted fetch \\
+Misaligned data access & Faulting instruction address & The faulting load/store may be emulated or reported \\
+\code{trap} & Address of following instruction & Trap returns after the trap instruction \\
+\code{syscall} & Address of following instruction & System call returns after the syscall instruction \\
+Timer interrupt & Address of next instruction & Interrupt resumes normal execution \\
+External interrupt & Address of next instruction & Interrupt resumes normal execution \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+For synchronous faults, \code{epc} identifies the instruction that caused the exception. For software traps, system calls, and interrupts, \code{epc} identifies the instruction address at which execution should resume.
+
+\section{Exception Address Register}
+
+The \code{eaddr} control register records an address associated with an exception when such an address is meaningful.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Event type & \code{eaddr} value & Meaning \\
+\hline
+Illegal instruction & \code{0} & No separate fault address \\
+Misaligned instruction fetch & Faulting fetch address & Misaligned instruction address \\
+Misaligned data access & Effective address & Misaligned load/store address \\
+\code{trap} & \code{0} & No separate fault address \\
+\code{syscall} & \code{0} & No separate fault address \\
+Timer interrupt & \code{0} & No separate fault address \\
+External interrupt & Platform-defined or \code{0} & Optional platform interrupt source information \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+If an exception or interrupt does not define a meaningful address, \code{eaddr} is written with zero unless otherwise specified by the platform.
+
+\section{Status Register Interrupt State}
+
+The \code{sr} control register contains the architectural condition flags and interrupt-control state.
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Bit & Name & Meaning \\
+\hline
+\code{0} & \code{N} & Negative flag \\
+\code{1} & \code{Z} & Zero flag \\
+\code{2} & \code{C} & Carry flag \\
+\code{3} & \code{V} & Overflow flag \\
+\code{4} & \code{E} & Arithmetic error flag \\
+\code{5} & \code{IE} & Interrupt enable bit \\
+\code{6--31} & reserved & Reserved, must be zero in VIV-32 v0.1 \\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent
+When \code{IE} is set, maskable interrupts may be taken. When \code{IE} is clear, maskable interrupts are held pending or ignored according to platform interrupt-controller behaviour.
+
+\begin{itemize}
+\item The \code{ei} instruction sets \code{IE}.
+\item The \code{di} instruction clears \code{IE}.
+\item Exception and interrupt entry clears \code{IE}.
+\item The \code{iret} instruction returns to the address stored in \code{epc}.
+\end{itemize}
+
+\noindent
+VIV-32 v0.1 does not define an automatic previous-interrupt-enable bit. Software exception handlers are responsible for saving and restoring \code{sr} if precise restoration of interrupt state or flags is required.
+
+\section{Interrupts}
+
+Timer and external interrupts use the same entry mechanism as exceptions.
+
+\begin{itemize}
+\item Timer interrupts use exception cause \code{0x06}.
+\item External interrupts use exception cause \code{0x07}.
+\item Interrupts are maskable by the \code{IE} bit in \code{sr}.
+\item Interrupts are taken only between instructions.
+\item Interrupt entry writes the resume address to \code{epc}.
+\item Interrupt entry clears \code{IE}.
+\end{itemize}
+
+\noindent
+The exact source, priority, pending-bit behaviour, and acknowledgement mechanism for platform interrupts are defined by the platform specification.
+
+\section{Software Trap}
+
+The \code{trap} instruction raises a software trap exception.
+
+\begin{itemize}
+\item \code{ecause} is set to \code{0x04}.
+\item \code{epc} is set to the address of the instruction following the \code{trap} instruction.
+\item \code{eaddr} is set to zero.
+\item The trap immediate is encoded in the faulting \code{trap} instruction and may be recovered by software from \ensuremath{epc - 4}.
+\end{itemize}
+
+\noindent
+The interpretation of the trap immediate is defined by the execution environment. It may be used for debugging, monitors, firmware calls, or implementation-defined software services.
+
+\section{System Call}
+
+The \code{syscall} instruction raises a system-call exception.
+
+\begin{itemize}
+\item \code{ecause} is set to \code{0x05}.
+\item \code{epc} is set to the address of the instruction following the \code{syscall} instruction.
+\item \code{eaddr} is set to zero.
+\end{itemize}
+
+\noindent
+The system-call ABI is defined separately by the VIV-32 ABI and execution-environment specifications.
+
+\section{Illegal Instruction}
+
+An illegal-instruction exception is raised when instruction decoding encounters an undefined, reserved, or otherwise invalid instruction encoding.
+
+\begin{itemize}
+\item \code{ecause} is set to \code{0x01}.
+\item \code{epc} is set to the address of the illegal instruction.
+\item \code{eaddr} is set to zero.
+\end{itemize}
+
+\noindent
+If exception handling is unavailable, an illegal instruction halts the machine.
+
+\section{Misaligned Access Exceptions}
+
+A misaligned instruction fetch exception is raised when the processor attempts to fetch an instruction from an address that is not 4-byte aligned.
+
+\begin{itemize}
+\item \code{ecause} is set to \code{0x02}.
+\item \code{epc} is set to the faulting instruction address.
+\item \code{eaddr} is set to the misaligned fetch address.
+\end{itemize}
+
+\noindent
+A misaligned data access exception is raised when a halfword or word load/store uses an effective address that does not satisfy the required alignment.
+
+\begin{itemize}
+\item \code{ecause} is set to \code{0x03}.
+\item \code{epc} is set to the address of the faulting load/store instruction.
+\item \code{eaddr} is set to the misaligned effective address.
+\end{itemize}
+
+\noindent
+Byte loads and stores never raise misaligned data access exceptions.
+
+\section{Exception Return}
+
+Exception and interrupt handlers return using the \code{iret} instruction defined in the instruction set chapter.
+
+\begin{itemize}
+\item The program counter is loaded from \code{epc}.
+\item Condition flags are not modified by \code{iret}.
+\item \code{IE} is not automatically restored by \code{iret}.
+\end{itemize}
+
+\noindent
+Because VIV-32 v0.1 does not define an automatic saved-status register, software handlers that need to restore the previous interrupt-enable state must save \code{sr} on entry and restore it before executing \code{iret}.
+
+\section{Nested Exceptions and Interrupts}
+
+Nested exceptions are permitted only when software explicitly enables them.
+
+\begin{itemize}
+\item Exception entry clears \code{IE}.
+\item While \code{IE} is clear, maskable interrupts are not taken.
+\item A handler may save \code{epc}, \code{ecause}, \code{eaddr}, and \code{sr}, then execute \code{ei} to permit nested interrupts.
+\item If a nested exception occurs before software has saved the previous exception state, the architectural exception registers may be overwritten.
+\end{itemize}
+
+\noindent
+Software handlers are responsible for preserving any general-purpose registers and control registers they need to restore.
