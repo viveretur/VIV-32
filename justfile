@@ -5,6 +5,9 @@ default:
 # Build all LaTeX documentation
 docs:
 	./scripts/build-docs.sh
+	
+check-isa:
+    python3 scripts/check-isa.py spec/isa/viv32-isa.yaml
 
 # Run all tests
 test:
