@@ -20,46 +20,46 @@ pub mod gpr {
     pub const COUNT: u32 = 0x10;
     pub const ENCODING_BITS: u32 = 0x4;
 
-    pub const R0: u32 = 0x0;
-    pub const R1: u32 = 0x1;
-    pub const R2: u32 = 0x2;
-    pub const R3: u32 = 0x3;
-    pub const R4: u32 = 0x4;
-    pub const R5: u32 = 0x5;
-    pub const R6: u32 = 0x6;
-    pub const R7: u32 = 0x7;
-    pub const R8: u32 = 0x8;
-    pub const R9: u32 = 0x9;
-    pub const R10: u32 = 0xA;
-    pub const R11: u32 = 0xB;
-    pub const R12: u32 = 0xC;
-    pub const R13: u32 = 0xD;
-    pub const R14: u32 = 0xE;
-    pub const R15: u32 = 0xF;
+    pub const R0: usize = 0x0;
+    pub const R1: usize = 0x1;
+    pub const R2: usize = 0x2;
+    pub const R3: usize = 0x3;
+    pub const R4: usize = 0x4;
+    pub const R5: usize = 0x5;
+    pub const R6: usize = 0x6;
+    pub const R7: usize = 0x7;
+    pub const R8: usize = 0x8;
+    pub const R9: usize = 0x9;
+    pub const R10: usize = 0xA;
+    pub const R11: usize = 0xB;
+    pub const R12: usize = 0xC;
+    pub const R13: usize = 0xD;
+    pub const R14: usize = 0xE;
+    pub const R15: usize = 0xF;
 
     /// Alias for r0
-    pub const ZERO: u32 = 0x0;
+    pub const ZERO: usize = 0x0;
     /// Alias for r14
-    pub const SP: u32 = 0xE;
+    pub const SP: usize = 0xE;
     /// Alias for r15
-    pub const LR: u32 = 0xF;
+    pub const LR: usize = 0xF;
     /// Alias for r13
-    pub const FP: u32 = 0xD;
+    pub const FP: usize = 0xD;
 }
 
 pub mod creg {
     /// Program counter
-    pub const PC: u32 = 0x0;
+    pub const PC: usize = 0x0;
     /// Status register
-    pub const SR: u32 = 0x1;
+    pub const SR: usize = 0x1;
     /// Exception program counter
-    pub const EPC: u32 = 0x2;
+    pub const EPC: usize = 0x2;
     /// Exception cause
-    pub const ECAUSE: u32 = 0x3;
+    pub const ECAUSE: usize = 0x3;
     /// Exception address
-    pub const EADDR: u32 = 0x4;
+    pub const EADDR: usize = 0x4;
     /// Exception vector base address
-    pub const EVBASE: u32 = 0x5;
+    pub const EVBASE: usize = 0x5;
 }
 
 pub mod sr {

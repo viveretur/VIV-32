@@ -134,6 +134,11 @@ class RustWriter:
             self.write(f"/// {comment}")
         self.write(f"pub const {name}: u32 = {hex_small(value)};")
 
+    def const_usize(self, name: str, value: int, comment: str | None = None) -> None:
+        if comment:
+            self.write(f"/// {comment}")
+        self.write(f"pub const {name}: usize = {hex_small(value)};")
+
     def const_bool(self, name: str, value: bool, comment: str | None = None) -> None:
         if comment:
             self.write(f"/// {comment}")
@@ -198,7 +203,7 @@ def emit_registers(w: RustWriter, spec: dict[str, Any]) -> None:
     if isinstance(names, dict):
         w.write()
         for name, raw_value in names.items():
-            w.const_u32(rust_ident(name), parse_int(raw_value, f"registers.gpr.names.{name}"))
+            w.const_usize(rust_ident(name), parse_int(raw_value, f"registers.gpr.names.{name}"))
 
     special = gpr.get("special", {})
     if isinstance(special, dict) and isinstance(names, dict):
@@ -206,7 +211,7 @@ def emit_registers(w: RustWriter, spec: dict[str, Any]) -> None:
         for alias, reg_name in special.items():
             if isinstance(reg_name, str) and reg_name in names:
                 value = parse_int(names[reg_name], f"registers.gpr.names.{reg_name}")
-                w.const_u32(rust_ident(alias), value, f"Alias for {reg_name}")
+                w.const_usize(rust_ident(alias), value, f"Alias for {reg_name}")
 
     w.close()
     w.write()
@@ -227,7 +232,7 @@ def emit_control_registers(w: RustWriter, spec: dict[str, Any]) -> None:
 
         comment = entry.get("description") if isinstance(entry.get("description"), str) else None
         value = parse_int(entry["number"], f"control_registers.{name}.number")
-        w.const_u32(rust_ident(name), value, comment)
+        w.const_usize(rust_ident(name), value, comment)
 
     w.close()
     w.write()
