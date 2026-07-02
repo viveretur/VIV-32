@@ -187,9 +187,9 @@ pub mod format {
         pub const OPCODE_WIDTH: u32 = 0x6;
         pub const OPCODE_MASK: u32 = 0xFC000000;
 
-        pub const U_SHIFT: u32 = 0x19;
-        pub const U_WIDTH: u32 = 0x1;
-        pub const U_MASK: u32 = 0x02000000;
+        pub const SX_SHIFT: u32 = 0x19;
+        pub const SX_WIDTH: u32 = 0x1;
+        pub const SX_MASK: u32 = 0x02000000;
 
         pub const SIZE_SHIFT: u32 = 0x17;
         pub const SIZE_WIDTH: u32 = 0x2;
@@ -402,6 +402,7 @@ pub mod mode {
     pub mod constant_construction {
         pub const LUI: u32 = 0x0;
         pub const LLI: u32 = 0x1;
+        pub const LHI: u32 = 0x2;
     }
 
 }

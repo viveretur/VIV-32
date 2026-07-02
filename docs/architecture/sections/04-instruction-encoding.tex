@@ -8,6 +8,7 @@ Instruction encoding is provisional in VIV-32 v0.1. The encoding described in th
 \item Instruction words are stored in memory using the architecture's big-endian byte order.
 \item Instruction encoding diagrams number bits from bit 31, the most significant bit, to bit 0, the least significant bit.
 \item Unless otherwise stated, immediate fields are sign-extended to 32 bits before use.
+\item Logical immediate instructions zero-extend their immediate operands.
 \end{itemize}
 
 For example, the instruction word \code{0x12345678} stored at address \code{A} is represented in memory as follows:
@@ -179,6 +180,7 @@ Field & \code{opcode} & \code{mode/reserved} & \code{imm16} & \code{rd} & \code{
   \item \code{rd} is the destination register field.
   \item \code{ra} is the source register field.
   \item Unless otherwise stated, \code{imm16} is sign-extended to 32 bits before use.
+  \item Logical immediate instructions zero-extend \code{imm16} to 32 bits before use.
   \item Arithmetic and logical I-type instructions update condition flags by default.
 \end{itemize}
 
@@ -225,18 +227,19 @@ Examples of U-type operations include:
 \begin{itemize}
   \item \code{lui rd, imm16}
   \item \code{lli rd, imm16}
+  \item \code{lhi rd, imm16}
 \end{itemize}
 
 \noindent
-A typical full-width constant may be constructed using an upper-immediate instruction followed by a lower-immediate or logical-immediate operation:
+A typical full-width constant may be constructed using a lower-immediate instruction followed by a high-immediate instruction:
 
 \begin{verbatim}
-lui  r1, 0x1234
-ori  r1, r1, 0x5678
+lli  r1, 0x5678
+lhi  r1, 0x1234
 \end{verbatim}
 
 \noindent
-This sequence constructs the value \code{0x12345678} in \code{r1}, subject to the exact semantics of \code{lui}, \code{ori}, and immediate extension rules.
+This sequence constructs the value \code{0x12345678} in \code{r1}, subject to the exact semantics of \code{lli}, \code{lhi}, and immediate extension rules.
 
 \subsection{M-Type: Load and Store Operations}
 
@@ -247,7 +250,7 @@ M-type instructions access memory using base-plus-offset addressing. The registe
 \hline
 Bits & 31--26 & 25 & 24--23 & 22--8 & 7--4 & 3--0 \\
 \hline
-Field & \code{opcode} & \code{u/reserved} & \code{size} & \code{offset15} & \code{rd/rs} & \code{base} \\
+Field & \code{opcode} & \code{sx/reserved} & \code{size} & \code{offset15} & \code{rd/rs} & \code{base} \\
 \hline
 \end{tabular}
 \end{center}
@@ -255,7 +258,7 @@ Field & \code{opcode} & \code{u/reserved} & \code{size} & \code{offset15} & \cod
 \begin{itemize}
   \item \code{opcode} is the 6-bit major opcode.
   \item Load and store instructions use separate major opcodes.
-  \item For load instructions, bit 25 is the unsigned-load flag.
+  \item For load instructions, bit 25 is the sign-extension flag.
   \item For store instructions, bit 25 is reserved and must be zero.
   \item \code{size} selects the memory access size.
   \item \code{offset15} is a signed 15-bit byte offset.
@@ -275,26 +278,26 @@ For load instructions, bit 25 selects whether sub-word loads are sign-extended o
 \begin{center}
 \begin{tabular}{lll}
 \hline
-\code{u} field & Meaning & Applies to \\
+\code{sx} field & Meaning & Applies to \\
 \hline
-\code{0} & sign-extend loaded value & byte and halfword loads \\
-\code{1} & zero-extend loaded value & byte and halfword loads \\
+\code{0} & zero-extend loaded value & byte and halfword loads \\
+\code{1} & sign-extend loaded value & byte and halfword loads \\
 \hline
 \end{tabular}
 \end{center}
 
 \noindent
-For 32-bit word loads, the unsigned-load flag is ignored and should be encoded as zero by conforming assemblers.
+For 32-bit word loads, the \code{sx} field is ignored and should be encoded as zero by conforming assemblers.
 
 \begin{center}
 \begin{tabular}{llll}
 \hline
-Mnemonic & \code{u} & \code{size} & Meaning \\
+Mnemonic & \code{sx} & \code{size} & Meaning \\
 \hline
-\code{lb}  & \code{0} & \code{00} & load signed byte \\
-\code{lbu} & \code{1} & \code{00} & load unsigned byte \\
-\code{lh}  & \code{0} & \code{01} & load signed halfword \\
-\code{lhu} & \code{1} & \code{01} & load unsigned halfword \\
+\code{lbu} & \code{0} & \code{00} & load unsigned byte \\
+\code{lb}  & \code{1} & \code{00} & load signed byte \\
+\code{lhu} & \code{0} & \code{01} & load unsigned halfword \\
+\code{lh}  & \code{1} & \code{01} & load signed halfword \\
 \code{lw}  & \code{0} & \code{10} & load word \\
 \hline
 \end{tabular}
@@ -585,7 +588,7 @@ Opcode & Format & Class & Instructions \\
 \code{0x05} & I  & Immediate shifts & \code{shli}, \code{shri}, \code{sari} \\
 \code{0x06} & I  & Bit immediate & \code{btst}, \code{bset}, \code{bclr}, \code{btgl} \\
 \code{0x07} & R2 & Multiply/divide & \code{mul}, \code{mulu}, \code{div}, \code{divu} \\
-\code{0x08} & U  & Constant construction & \code{lui}, \code{lli} \\
+\code{0x08} & U  & Constant construction & \code{lui}, \code{lli}, \code{lhi} \\
 \code{0x09} & M  & Load & \code{lb}, \code{lbu}, \code{lh}, \code{lhu}, \code{lw} \\
 \code{0x0A} & M  & Store & \code{sb}, \code{sh}, \code{sw} \\
 \code{0x0B} & BF & Flag branch & \code{bf.*} \\
@@ -668,9 +671,9 @@ Immediate logical instructions use opcode \code{0x03} and the I-type instruction
 \hline
 \code{mode} value & Mnemonic & Meaning \\
 \hline
-\code{0x0} & \code{andi} & Bitwise AND with sign-extended immediate \\
-\code{0x1} & \code{ori}  & Bitwise OR with sign-extended immediate \\
-\code{0x2} & \code{xori} & Bitwise XOR with sign-extended immediate \\
+\code{0x0} & \code{andi} & Bitwise AND with zero-extended immediate \\
+\code{0x1} & \code{ori}  & Bitwise OR with zero-extended immediate \\
+\code{0x2} & \code{xori} & Bitwise XOR with zero-extended immediate \\
 \code{0x3} & reserved & Reserved \\
 \hline
 \end{tabular}
@@ -772,9 +775,10 @@ Constant construction instructions use opcode \code{0x08} and the U-type instruc
 \hline
 \code{mode} value & Mnemonic & Meaning \\
 \hline
-\code{0x00} & \code{lui} & Load upper immediate \\
-\code{0x01} & \code{lli} & Load lower immediate \\
-\code{0x02--0x3F} & reserved & Reserved \\
+\code{0x00} & \code{lui} & Load upper immediate, clear lower half \\
+\code{0x01} & \code{lli} & Load lower immediate, clear upper half \\
+\code{0x02} & \code{lhi} & Load upper immediate, preserve lower half \\
+\code{0x03--0x3F} & reserved & Reserved \\
 \hline
 \end{tabular}
 \end{center}
@@ -783,7 +787,10 @@ Constant construction instructions use opcode \code{0x08} and the U-type instruc
 For \code{lui}, the \code{imm16} field is placed in bits 31--16 of the destination register and bits 15--0 are cleared.
 
 \noindent
-For \code{lli}, the \code{imm16} field is zero-extended and written to the destination register.
+For \code{lli}, the \code{imm16} field is placed in bits 15--0 of the destination register and bits 31--16 are cleared.
+
+\noindent
+For \code{lhi}, the \code{imm16} field is placed in bits 31--16 of the destination register, without modifying bits 15--0.
 
 \section{Memory Encoding Values}
 
@@ -791,17 +798,17 @@ Memory instructions use the M-type instruction format. Load instructions use opc
 
 \subsection{Load Encoding}
 
-Load instructions use opcode \code{0x09}. The \code{u} field selects whether sub-word loads are sign-extended or zero-extended.
+Load instructions use opcode \code{0x09}. The \code{sx} field selects whether sub-word loads are sign-extended or zero-extended.
 
 \begin{center}
 \begin{tabular}{llll}
 \hline
-Mnemonic & \code{u} & \code{size} & Meaning \\
+Mnemonic & \code{sx} & \code{size} & Meaning \\
 \hline
-\code{lb}  & \code{0} & \code{00} & Load byte and sign-extend to 32 bits \\
-\code{lbu} & \code{1} & \code{00} & Load byte and zero-extend to 32 bits \\
-\code{lh}  & \code{0} & \code{01} & Load halfword and sign-extend to 32 bits \\
-\code{lhu} & \code{1} & \code{01} & Load halfword and zero-extend to 32 bits \\
+\code{lbu} & \code{0} & \code{00} & Load byte and zero-extend to 32 bits \\
+\code{lb}  & \code{1} & \code{00} & Load byte and sign-extend to 32 bits \\
+\code{lhu} & \code{0} & \code{01} & Load halfword and zero-extend to 32 bits \\
+\code{lh}  & \code{1} & \code{01} & Load halfword and sign-extend to 32 bits \\
 \code{lw}  & \code{0} & \code{10} & Load word \\
 \code{--}  & \code{1} & \code{10} & Reserved \\
 \code{--}  & \code{0} & \code{11} & Reserved \\
@@ -811,17 +818,17 @@ Mnemonic & \code{u} & \code{size} & Meaning \\
 \end{center}
 
 \noindent
-For byte and halfword loads, the loaded value is extended to 32 bits according to the \code{u} field.
+For byte and halfword loads, the loaded value is extended to 32 bits according to the \code{sx} field.
 
 \noindent
-For word loads, the loaded value is already 32 bits wide. The \code{u} field is reserved and must be encoded as \code{0} by conforming assemblers.
+For word loads, the loaded value is already 32 bits wide. The \code{sx} field is reserved and must be encoded as \code{0} by conforming assemblers.
 
 \noindent
-Executing a load instruction with a reserved \code{u}/\code{size} combination raises an illegal-instruction exception.
+Executing a load instruction with a reserved \code{sx}/\code{size} combination raises an illegal-instruction exception.
 
 \subsection{Store Encoding}
 
-Store instructions use opcode \code{0x0A}. For store instructions, the \code{u/reserved} field is reserved and must be encoded as \code{0}.
+Store instructions use opcode \code{0x0A}. For store instructions, the \code{sx/reserved} field is reserved and must be encoded as \code{0}.
 
 \begin{center}
 \begin{tabular}{lll}
@@ -837,7 +844,7 @@ Mnemonic & \code{size} & Meaning \\
 \end{center}
 
 \noindent
-Executing a store instruction with \code{u/reserved} set to \code{1} raises an illegal-instruction exception.
+Executing a store instruction with \code{sx/reserved} set to \code{1} raises an illegal-instruction exception.
 
 \noindent
 Executing a store instruction with \code{size} set to \code{11} raises an illegal-instruction exception.

@@ -36,7 +36,7 @@ The VIV-32 instruction set is provisional in v0.1. This chapter defines the arch
 \begin{itemize}
 \item Unless otherwise specified, immediate operands are sign-extended to 32 bits before use.
 \item Arithmetic immediate instructions sign-extend their immediate operands.
-\item Logical immediate instructions sign-extend their immediate operands.
+\item Logical immediate instructions zero-extend their immediate operands.
 \item Shift counts are interpreted as unsigned values.
 \item Bit indexes are interpreted as unsigned values in the range 0--31.
 \end{itemize}
@@ -648,13 +648,20 @@ VIV-32 instructions are fixed-width 32-bit words. A single instruction cannot en
   \item \flagC, \flagV, and \flagE\ are cleared.
 \end{itemize}
 
-\subsection{\code{ori} for Constant Construction}
+\subsection{\code{lhi}}
 
 \begin{itemize}
-  \item The \code{ori} instruction may be used after \code{lui} to construct a full 32-bit constant.
-  \item Since VIV-32 immediate operands are sign-extended by default, assemblers must ensure that lower-half constant construction preserves the intended value.
-  \item If the low 16 bits have bit 15 set, the assembler should use a relocation-safe sequence rather than a naive \code{ori} with a sign-extended immediate.
+  \item Syntax: \code{lhi rd, imm16}
+  \item Operation: load upper immediate, preserve lower bytes.
+  \item The 16-bit immediate is written to \code{rd} bits 31--16.
+  \item Operation: \ensuremath{rd \assign (\zext{imm16} << 16) OR (rd AND 0xFFFF)}
+  \item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
+  \item \flagC, \flagV, and \flagE\ are cleared.
 \end{itemize}
+
+\subsection{\code{lli} and \code{lhi} for Constant Construction}
+
+The \code{lhi} instruction may be used after \code{lli} to construct a full 32-bit constant.
 
 \subsection{Full-Width Constants}
 

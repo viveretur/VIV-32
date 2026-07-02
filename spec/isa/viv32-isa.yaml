@@ -117,7 +117,7 @@ formats:
   M:
     fields:
       opcode:   { bits: [31, 26] }
-      u:        { bits: [25, 25] }
+      sx:       { bits: [25, 25] }
       size:     { bits: [24, 23] }
       offset15: { bits: [22, 8] }
       rd_rs:    { bits: [7, 4] }
@@ -523,6 +523,8 @@ mode_codes:
         value: 0x00
       lli:
         value: 0x01
+      lhi:
+        value: 0x02
       reserved:
-        range: [0x02, 0x3F]
+        range: [0x03, 0x3F]
 
