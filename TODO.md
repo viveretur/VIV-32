@@ -1,9 +1,3 @@
-
-## Suggested TODO role
-
-`TODO.md` can be much more active and messy:
-
-```markdown
 # TODO
 
 ## Phase 1 — Architecture Specification
