@@ -1,4 +1,6 @@
-# Portfolio
+# VIV-32
+
+*For illustrative purposes only*
 
 A custom computer architecture project implementing:
 
@@ -36,3 +38,11 @@ Common commands are defined in `justfile`.
 
 ```bash
 just --list
+```
+  
+## Licence
+
+This project is experimental and provided as-is. It is not production hardware, security, safety, or compliance tooling.
+
+See [LICENSE](LICENSE).
+
