@@ -1,25 +1,34 @@
+
+set dotenv-load := false
+
+ROOT := justfile_directory()
+
 # Show available commands
 default:
 	just --list
 
 # Build all LaTeX documentation
 docs:
-	./scripts/build-docs.sh
+	cd {{ROOT}} && ./scripts/build-docs.sh
 	
 check-isa:
-    python3 scripts/check-isa.py spec/isa/viv32-isa.yaml
+    cd {{ROOT}} && python3 scripts/check-isa.py spec/isa/viv32-isa.yaml
 
 gen-isa-rust:
-    python3 scripts/gen-isa-rust.py spec/isa/viv32-isa.yaml emulator/src/isa/generated.rs
+    cd {{ROOT}} && python3 scripts/gen-isa-rust.py spec/isa/viv32-isa.yaml emulator/src/isa/generated.rs
 
 check-emulator:
-	cd emulator && cargo check
+	cd {{ROOT}}/emulator && cargo check
 	
 isa: check-isa gen-isa-rust check-emulator
 	
 # Run all tests
-test:
-	./scripts/test-all.sh
+test-all:
+	cd {{ROOT}} && ./scripts/test-all.sh
+
+# Format emulator
+emulator-fmt-clippy:
+	cd {{ROOT}}/emulator && cargo fmt --check && cargo clippy --all-targets
 
 # Remove generated files
 clean:
