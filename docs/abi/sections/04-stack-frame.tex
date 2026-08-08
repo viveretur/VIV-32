@@ -10,8 +10,7 @@
 \section{Stack Alignment}
 
 \begin{itemize}
-  \item The stack pointer must be 8-byte aligned at every public function call boundary.
-  \item The 8-byte alignment rule allows 64-bit ABI values to be placed on the stack with natural alignment.
+  \item The stack pointer must be 4-byte aligned at every public function call boundary.
   \item Future floating-point or vector extensions may define stricter alignment requirements for specific data types.
 \end{itemize}
 

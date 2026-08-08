@@ -47,7 +47,7 @@ Address & Byte value \\
   \item Byte accesses may occur at any address.
   \item Halfword accesses must be aligned to a 2-byte boundary.
   \item Word accesses must be aligned to a 4-byte boundary.
-  \item 64-bit ABI values stored in memory should be aligned to an 8-byte boundary.
+  \item 64-bit ABI values stored in memory should be aligned to an 4-byte word boundary.
   \item Misaligned halfword or word accesses raise a misaligned access exception if exception handling is enabled.
   \item If exception handling is not enabled, misaligned access halts the machine.
 \end{itemize}
