@@ -1,9 +1,13 @@
-pub mod clock;
-pub mod ram;
-pub mod serial;
-pub mod timer;
+mod clock;
+mod memory_mapping;
+mod ram;
+mod serial;
+mod system_bus;
+mod timer;
 
-pub use clock::Clock;
-pub use ram::Ram;
-pub use serial::{Serial, SerialSink, VecSerialSink};
-pub use timer::Timer;
+use clock::Clock;
+use memory_mapping::MemoryMapping;
+use ram::Ram;
+use serial::{Serial, VecSerialSink};
+pub use system_bus::SystemBus;
+use timer::Timer;

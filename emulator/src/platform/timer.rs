@@ -1,3 +1,5 @@
+use super::MemoryMapping;
+
 use crate::lifecycle::{Init, Reset, Tick};
 
 #[derive(Debug, Clone)]
@@ -7,28 +9,30 @@ pub struct Timer {
     control: u32,
 }
 
+const COUNTER_OFFSET: u32 = 0x00;
+const COUNTER_END_OFFSET: u32 = COUNTER_OFFSET + 3;
+const CONTROL_OFFSET: u32 = 0x04;
+const CONTROL_END_OFFSET: u32 = CONTROL_OFFSET + 3;
+
+const CONTROL_ENABLE: u32 = 1 << 0;
+const CONTROL_IRQ_ENABLE: u32 = 1 << 1;
+const CONTROL_IRQ_PENDING: u32 = 1 << 2;
+const CONTROL_AUTO_RELOAD: u32 = 1 << 3;
+
+const CONTROL_PRESCALER_SHIFT: u32 = 4;
+const CONTROL_PRESCALER_MASK: u32 = 0xF << CONTROL_PRESCALER_SHIFT;
+
+const CONTROL_PERIOD_SHIFT: u32 = 8;
+const CONTROL_PERIOD_MASK: u32 = 0xF << CONTROL_PERIOD_SHIFT;
+
+const CONTROL_WRITABLE_MASK: u32 = CONTROL_ENABLE
+    | CONTROL_IRQ_ENABLE
+    | CONTROL_IRQ_PENDING
+    | CONTROL_AUTO_RELOAD
+    | CONTROL_PRESCALER_MASK
+    | CONTROL_PERIOD_MASK;
+
 impl Timer {
-    pub const COUNTER_OFFSET: u32 = 0x00;
-    pub const CONTROL_OFFSET: u32 = 0x04;
-
-    pub const CONTROL_ENABLE: u32 = 1 << 0;
-    pub const CONTROL_IRQ_ENABLE: u32 = 1 << 1;
-    pub const CONTROL_IRQ_PENDING: u32 = 1 << 2;
-    pub const CONTROL_AUTO_RELOAD: u32 = 1 << 3;
-
-    pub const CONTROL_PRESCALER_SHIFT: u32 = 4;
-    pub const CONTROL_PRESCALER_MASK: u32 = 0xF << Self::CONTROL_PRESCALER_SHIFT;
-
-    pub const CONTROL_PERIOD_SHIFT: u32 = 8;
-    pub const CONTROL_PERIOD_MASK: u32 = 0xF << Self::CONTROL_PERIOD_SHIFT;
-
-    pub const CONTROL_WRITABLE_MASK: u32 = Self::CONTROL_ENABLE
-        | Self::CONTROL_IRQ_ENABLE
-        | Self::CONTROL_IRQ_PENDING
-        | Self::CONTROL_AUTO_RELOAD
-        | Self::CONTROL_PRESCALER_MASK
-        | Self::CONTROL_PERIOD_MASK;
-
     pub fn new() -> Self {
         Self {
             counter: 0,
@@ -37,44 +41,44 @@ impl Timer {
         }
     }
 
-    pub fn counter(&self) -> u32 {
+    fn counter(&self) -> u32 {
         self.counter
     }
 
-    pub fn control(&self) -> u32 {
+    fn control(&self) -> u32 {
         self.control
     }
 
-    pub fn enabled(&self) -> bool {
-        self.control & Self::CONTROL_ENABLE != 0
+    fn enabled(&self) -> bool {
+        self.control & CONTROL_ENABLE != 0
     }
 
-    pub fn interrupt_pending(&self) -> bool {
-        self.control & Self::CONTROL_IRQ_PENDING != 0
+    fn interrupt_pending(&self) -> bool {
+        self.control & CONTROL_IRQ_PENDING != 0
     }
 
-    pub fn interrupt_asserted(&self) -> bool {
-        self.control & Self::CONTROL_IRQ_ENABLE != 0 && self.interrupt_pending()
+    fn interrupt_asserted(&self) -> bool {
+        self.control & CONTROL_IRQ_ENABLE != 0 && self.interrupt_pending()
     }
 
-    pub fn read_counter(&self) -> u32 {
+    fn read_counter(&self) -> u32 {
         self.counter
     }
 
-    pub fn write_counter(&mut self, value: u32) {
+    fn write_counter(&mut self, value: u32) {
         self.counter = value;
         self.prescale_counter = 0;
     }
 
-    pub fn read_control(&self) -> u32 {
+    fn read_control(&self) -> u32 {
         self.control
     }
 
-    pub fn write_control(&mut self, value: u32) {
-        let clear_pending = value & Self::CONTROL_IRQ_PENDING != 0;
+    fn write_control(&mut self, value: u32) {
+        let clear_pending = value & CONTROL_IRQ_PENDING != 0;
 
-        let preserved_pending = self.control & Self::CONTROL_IRQ_PENDING;
-        let writable_without_pending = Self::CONTROL_WRITABLE_MASK & !Self::CONTROL_IRQ_PENDING;
+        let preserved_pending = self.control & CONTROL_IRQ_PENDING;
+        let writable_without_pending = CONTROL_WRITABLE_MASK & !CONTROL_IRQ_PENDING;
 
         self.control = value & writable_without_pending;
 
@@ -84,11 +88,11 @@ impl Timer {
     }
 
     fn prescaler_select(&self) -> u32 {
-        (self.control & Self::CONTROL_PRESCALER_MASK) >> Self::CONTROL_PRESCALER_SHIFT
+        (self.control & CONTROL_PRESCALER_MASK) >> CONTROL_PRESCALER_SHIFT
     }
 
     fn period_select(&self) -> u32 {
-        (self.control & Self::CONTROL_PERIOD_MASK) >> Self::CONTROL_PERIOD_SHIFT
+        (self.control & CONTROL_PERIOD_MASK) >> CONTROL_PERIOD_SHIFT
     }
 
     fn prescaler_divider(&self) -> u32 {
@@ -116,7 +120,7 @@ impl Reset for Timer {
 
 impl Tick for Timer {
     fn tick(&mut self) {
-        if self.control & Self::CONTROL_ENABLE == 0 {
+        if self.control & CONTROL_ENABLE == 0 {
             return;
         }
 
@@ -130,12 +134,12 @@ impl Tick for Timer {
         self.counter = self.counter.wrapping_add(1);
 
         if self.counter >= self.period_limit() {
-            self.control |= Self::CONTROL_IRQ_PENDING;
+            self.control |= CONTROL_IRQ_PENDING;
 
-            if self.control & Self::CONTROL_AUTO_RELOAD != 0 {
+            if self.control & CONTROL_AUTO_RELOAD != 0 {
                 self.counter = 0;
             } else {
-                self.control &= !Self::CONTROL_ENABLE;
+                self.control &= !CONTROL_ENABLE;
             }
         }
     }
@@ -144,6 +148,52 @@ impl Tick for Timer {
 impl Default for Timer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl MemoryMapping for Timer {
+    fn read8(&mut self, offset: u32) -> Option<u8> {
+        match offset {
+            COUNTER_OFFSET..=COUNTER_END_OFFSET => {
+                let counter = self.counter();
+                let shift = (3 - (offset - COUNTER_OFFSET)) * 8;
+                Some((counter >> shift) as u8)
+            }
+
+            CONTROL_OFFSET..=CONTROL_END_OFFSET => {
+                let control = self.control();
+                let shift = (3 - (offset - CONTROL_OFFSET)) * 8;
+                Some((control >> shift) as u8)
+            }
+
+            _ => None,
+        }
+    }
+
+    fn write8(&mut self, offset: u32, value: u8) -> Option<()> {
+        match offset {
+            COUNTER_OFFSET..=COUNTER_END_OFFSET => {
+                let shift = (3 - (offset - COUNTER_OFFSET)) * 8;
+                let mask = !(0xFFu32 << shift);
+
+                let new_counter = (self.counter() & mask) | ((value as u32) << shift);
+
+                self.write_counter(new_counter);
+                Some(())
+            }
+
+            CONTROL_OFFSET..=CONTROL_END_OFFSET => {
+                let shift = (3 - (offset - CONTROL_OFFSET)) * 8;
+                let mask = !(0xFFu32 << shift);
+
+                let new_control = (self.control() & mask) | ((value as u32) << shift);
+
+                self.write_control(new_control);
+                Some(())
+            }
+
+            _ => None,
+        }
     }
 }
 
@@ -175,7 +225,7 @@ mod tests {
     fn enabled_timer_counts_ticks() {
         let mut timer = Timer::new();
 
-        timer.write_control(Timer::CONTROL_ENABLE);
+        timer.write_control(CONTROL_ENABLE);
         timer.tick();
         timer.tick();
 
@@ -187,7 +237,7 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(123);
-        timer.write_control(Timer::CONTROL_ENABLE | Timer::CONTROL_IRQ_ENABLE);
+        timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
         timer.tick();
 
         timer.reset();
@@ -202,7 +252,7 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(123);
-        timer.write_control(Timer::CONTROL_ENABLE | Timer::CONTROL_IRQ_ENABLE);
+        timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
         timer.tick();
 
         timer.init();
@@ -216,9 +266,9 @@ mod tests {
     fn prescaler_divides_ticks() {
         let mut timer = Timer::new();
 
-        let prescaler_divide_by_4 = 2 << Timer::CONTROL_PRESCALER_SHIFT;
+        let prescaler_divide_by_4 = 2 << CONTROL_PRESCALER_SHIFT;
 
-        timer.write_control(Timer::CONTROL_ENABLE | prescaler_divide_by_4);
+        timer.write_control(CONTROL_ENABLE | prescaler_divide_by_4);
 
         timer.tick();
         timer.tick();
@@ -236,7 +286,7 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
-        timer.write_control(Timer::CONTROL_ENABLE);
+        timer.write_control(CONTROL_ENABLE);
 
         timer.tick();
 
@@ -250,7 +300,7 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
-        timer.write_control(Timer::CONTROL_ENABLE | Timer::CONTROL_IRQ_ENABLE);
+        timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
 
         timer.tick();
 
@@ -263,11 +313,11 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
-        timer.write_control(Timer::CONTROL_ENABLE);
+        timer.write_control(CONTROL_ENABLE);
 
         timer.tick();
 
-        assert_eq!(timer.control() & Timer::CONTROL_ENABLE, 0);
+        assert_eq!(timer.control() & CONTROL_ENABLE, 0);
     }
 
     #[test]
@@ -275,12 +325,12 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
-        timer.write_control(Timer::CONTROL_ENABLE | Timer::CONTROL_AUTO_RELOAD);
+        timer.write_control(CONTROL_ENABLE | CONTROL_AUTO_RELOAD);
 
         timer.tick();
 
         assert_eq!(timer.counter(), 0);
-        assert_ne!(timer.control() & Timer::CONTROL_ENABLE, 0);
+        assert_ne!(timer.control() & CONTROL_ENABLE, 0);
         assert!(timer.interrupt_pending());
     }
 
@@ -289,12 +339,12 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
-        timer.write_control(Timer::CONTROL_ENABLE | Timer::CONTROL_IRQ_ENABLE);
+        timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
         timer.tick();
 
         assert!(timer.interrupt_pending());
 
-        timer.write_control(Timer::CONTROL_IRQ_PENDING);
+        timer.write_control(CONTROL_IRQ_PENDING);
 
         assert!(!timer.interrupt_pending());
         assert!(!timer.interrupt_asserted());
@@ -305,12 +355,12 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
-        timer.write_control(Timer::CONTROL_ENABLE | Timer::CONTROL_IRQ_ENABLE);
+        timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
         timer.tick();
 
         assert!(timer.interrupt_pending());
 
-        timer.write_control(Timer::CONTROL_IRQ_ENABLE);
+        timer.write_control(CONTROL_IRQ_ENABLE);
 
         assert!(timer.interrupt_pending());
     }
@@ -319,9 +369,9 @@ mod tests {
     fn write_counter_resets_prescaler_counter() {
         let mut timer = Timer::new();
 
-        let prescaler_divide_by_4 = 2 << Timer::CONTROL_PRESCALER_SHIFT;
+        let prescaler_divide_by_4 = 2 << CONTROL_PRESCALER_SHIFT;
 
-        timer.write_control(Timer::CONTROL_ENABLE | prescaler_divide_by_4);
+        timer.write_control(CONTROL_ENABLE | prescaler_divide_by_4);
         timer.tick();
         timer.tick();
         timer.tick();
@@ -330,5 +380,70 @@ mod tests {
         timer.tick();
 
         assert_eq!(timer.counter(), 10);
+    }
+
+    #[test]
+    fn read8_exposes_counter_as_big_endian_bytes() {
+        let mut timer = Timer::new();
+
+        timer.write_counter(0x1234_5678);
+
+        assert_eq!(timer.read8(COUNTER_OFFSET), Some(0x12));
+        assert_eq!(timer.read8(COUNTER_OFFSET + 1), Some(0x34));
+        assert_eq!(timer.read8(COUNTER_OFFSET + 2), Some(0x56));
+        assert_eq!(timer.read8(COUNTER_OFFSET + 3), Some(0x78));
+    }
+
+    #[test]
+    fn write8_updates_counter_big_endian_byte_lanes() {
+        let mut timer = Timer::new();
+
+        assert_eq!(timer.write8(COUNTER_OFFSET, 0x12), Some(()));
+        assert_eq!(timer.write8(COUNTER_OFFSET + 1, 0x34), Some(()));
+        assert_eq!(timer.write8(COUNTER_OFFSET + 2, 0x56), Some(()));
+        assert_eq!(timer.write8(COUNTER_OFFSET + 3, 0x78), Some(()));
+
+        assert_eq!(timer.counter(), 0x1234_5678);
+    }
+
+    #[test]
+    fn read8_exposes_control_as_big_endian_bytes() {
+        let mut timer = Timer::new();
+
+        timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE | CONTROL_AUTO_RELOAD);
+
+        assert_eq!(timer.read8(CONTROL_OFFSET), Some(0x00));
+        assert_eq!(timer.read8(CONTROL_OFFSET + 1), Some(0x00));
+        assert_eq!(timer.read8(CONTROL_OFFSET + 2), Some(0x00));
+        assert_eq!(
+            timer.read8(CONTROL_OFFSET + 3),
+            Some((CONTROL_ENABLE | CONTROL_IRQ_ENABLE | CONTROL_AUTO_RELOAD) as u8)
+        );
+    }
+
+    #[test]
+    fn write8_control_uses_control_register_semantics() {
+        let mut timer = Timer::new();
+
+        timer.write_counter(255);
+        timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
+        timer.tick();
+
+        assert!(timer.interrupt_pending());
+
+        assert_eq!(
+            timer.write8(CONTROL_OFFSET + 3, CONTROL_IRQ_PENDING as u8),
+            Some(())
+        );
+
+        assert!(!timer.interrupt_pending());
+    }
+
+    #[test]
+    fn timer_unknown_offsets_return_none() {
+        let mut timer = Timer::new();
+
+        assert_eq!(timer.read8(0x08), None);
+        assert_eq!(timer.write8(0x08, 0xFF), None);
     }
 }

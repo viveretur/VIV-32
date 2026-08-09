@@ -1,4 +1,5 @@
-use crate::bus::BusError;
+use super::MemoryMapping;
+
 use crate::lifecycle::{Init, Reset, Tick};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -7,27 +8,12 @@ pub struct Clock {
 }
 
 impl Clock {
-    pub const CYCLE_LO_OFFSET: u32 = 0x00;
-    pub const CYCLE_HI_OFFSET: u32 = 0x04;
-
     pub fn new() -> Self {
         Self { cycles: 0 }
     }
 
-    pub fn cycles(&self) -> u64 {
+    fn cycles(&self) -> u64 {
         self.cycles
-    }
-
-    pub fn read32(&self, offset: u32) -> Result<u32, BusError> {
-        match offset {
-            Self::CYCLE_LO_OFFSET => Ok(self.cycles as u32),
-            Self::CYCLE_HI_OFFSET => Ok((self.cycles >> 32) as u32),
-            _ => Err(BusError::UnsupportedAccess { addr: offset }),
-        }
-    }
-
-    pub fn write32(&mut self, offset: u32, _value: u32) -> Result<(), BusError> {
-        Err(BusError::UnsupportedAccess { addr: offset })
     }
 }
 
@@ -52,6 +38,32 @@ impl Tick for Clock {
 impl Default for Clock {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl MemoryMapping for Clock {
+    fn read8(&mut self, offset: u32) -> Option<u8> {
+        let cycles = self.cycles();
+
+        match offset {
+            // cycle_lo, big-endian bytes
+            0x00 => Some((cycles >> 24) as u8),
+            0x01 => Some((cycles >> 16) as u8),
+            0x02 => Some((cycles >> 8) as u8),
+            0x03 => Some(cycles as u8),
+
+            // cycle_hi, big-endian bytes
+            0x04 => Some((cycles >> 56) as u8),
+            0x05 => Some((cycles >> 48) as u8),
+            0x06 => Some((cycles >> 40) as u8),
+            0x07 => Some((cycles >> 32) as u8),
+
+            _ => None,
+        }
+    }
+
+    fn write8(&mut self, _offset: u32, _value: u8) -> Option<()> {
+        None
     }
 }
 
@@ -99,51 +111,50 @@ mod tests {
     }
 
     #[test]
-    fn read_cycle_low_word() {
-        let clock = Clock {
-            cycles: 0x1234_5678_9ABC_DEF0,
-        };
-
-        assert_eq!(clock.read32(Clock::CYCLE_LO_OFFSET).unwrap(), 0x9ABC_DEF0);
-    }
-
-    #[test]
-    fn read_cycle_high_word() {
-        let clock = Clock {
-            cycles: 0x1234_5678_9ABC_DEF0,
-        };
-
-        assert_eq!(clock.read32(Clock::CYCLE_HI_OFFSET).unwrap(), 0x1234_5678);
-    }
-
-    #[test]
-    fn invalid_read_offset_errors() {
-        let clock = Clock::new();
-
-        assert_eq!(
-            clock.read32(0x08),
-            Err(BusError::UnsupportedAccess { addr: 0x08 })
-        );
-    }
-
-    #[test]
-    fn clock_registers_are_read_only() {
-        let mut clock = Clock::new();
-
-        assert_eq!(
-            clock.write32(Clock::CYCLE_LO_OFFSET, 123),
-            Err(BusError::UnsupportedAccess {
-                addr: Clock::CYCLE_LO_OFFSET
-            })
-        );
-    }
-
-    #[test]
     fn cycle_counter_wraps() {
         let mut clock = Clock { cycles: u64::MAX };
 
         clock.tick();
 
         assert_eq!(clock.cycles(), 0);
+    }
+
+    #[test]
+    fn read8_exposes_low_cycle_word_as_big_endian_bytes() {
+        let mut clock = Clock {
+            cycles: 0x0000_0000_1234_5678,
+        };
+
+        assert_eq!(clock.read8(0x00), Some(0x12));
+        assert_eq!(clock.read8(0x01), Some(0x34));
+        assert_eq!(clock.read8(0x02), Some(0x56));
+        assert_eq!(clock.read8(0x03), Some(0x78));
+    }
+
+    #[test]
+    fn read8_exposes_high_cycle_word_as_big_endian_bytes() {
+        let mut clock = Clock {
+            cycles: 0x1234_5678_0000_0000,
+        };
+
+        assert_eq!(clock.read8(0x04), Some(0x12));
+        assert_eq!(clock.read8(0x05), Some(0x34));
+        assert_eq!(clock.read8(0x06), Some(0x56));
+        assert_eq!(clock.read8(0x07), Some(0x78));
+    }
+
+    #[test]
+    fn read8_unknown_clock_offset_returns_none() {
+        let mut clock = Clock::new();
+
+        assert_eq!(clock.read8(0x08), None);
+    }
+
+    #[test]
+    fn write8_clock_always_returns_none() {
+        let mut clock = Clock::new();
+
+        assert_eq!(clock.write8(0x00, 0xFF), None);
+        assert_eq!(clock.write8(0x07, 0xFF), None);
     }
 }
