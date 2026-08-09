@@ -179,4 +179,29 @@ mod tests {
         assert_eq!(serial.read8(0x08), None);
         assert_eq!(serial.write8(0x08, 0xFF), None);
     }
+
+    #[test]
+    fn write8_data_emits_only_when_enabled_and_tx_enabled() {
+        let mut serial = TestSerial::new(VecSerialSink::new());
+
+        assert_eq!(serial.write8(DATA_OFFSET, b'A'), Some(()));
+        assert_eq!(serial.sink.bytes, b"");
+
+        assert_eq!(
+            serial.write8(CONTROL_OFFSET + 3, CONTROL_ENABLE as u8),
+            Some(())
+        );
+        assert_eq!(serial.write8(DATA_OFFSET, b'B'), Some(()));
+        assert_eq!(serial.sink.bytes, b"");
+
+        assert_eq!(
+            serial.write8(
+                CONTROL_OFFSET + 3,
+                (CONTROL_ENABLE | CONTROL_TX_ENABLE) as u8,
+            ),
+            Some(())
+        );
+        assert_eq!(serial.write8(DATA_OFFSET, b'C'), Some(()));
+        assert_eq!(serial.sink.bytes, b"C");
+    }
 }

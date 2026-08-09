@@ -11,13 +11,23 @@ impl Ram {
             bytes: vec![0; size as usize],
         }
     }
+
+    pub fn from_bytes(size: u32, data: &[u8]) -> Self {
+        assert!(
+            data.len() <= size as usize,
+            "RAM image is larger than RAM size"
+        );
+
+        let mut bytes = vec![0; size as usize];
+        bytes[..data.len()].copy_from_slice(data);
+
+        Self { bytes }
+    }
 }
 
 impl MemoryMapping for Ram {
     fn read8(&mut self, offset: u32) -> Option<u8> {
-        self.bytes
-            .get(offset as usize)
-            .copied()
+        self.bytes.get(offset as usize).copied()
     }
 
     fn write8(&mut self, offset: u32, value: u8) -> Option<()> {

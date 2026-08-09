@@ -32,6 +32,15 @@ impl SystemBus {
         }
     }
 
+    pub fn with_ram_image(ram_size: u32, image: &[u8]) -> Self {
+        Self {
+            ram: Ram::from_bytes(ram_size, image),
+            serial: Serial::new(VecSerialSink::new()),
+            clock: Clock::new(),
+            timer: Timer::new(),
+        }
+    }
+
     fn check_alignment(addr: u32, alignment: u32) -> Result<(), SystemBusError> {
         if addr & (alignment - 1) != 0 {
             return Err(SystemBusError::MisalignedAccess { addr, alignment });

@@ -9,5 +9,5 @@ use clock::Clock;
 use memory_mapping::MemoryMapping;
 use ram::Ram;
 use serial::{Serial, VecSerialSink};
-pub use system_bus::SystemBus;
+pub use system_bus::{SystemBus, SystemBusError};
 use timer::Timer;
