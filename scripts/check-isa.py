@@ -236,7 +236,8 @@ def check_format_fields(spec: dict[str, Any], errors: ErrorList) -> None:
                 else:
                     occupied[bit] = field_name
 
-        missing_bits = [bit for bit in range(32) if bit not in occupied]
+        # Note upper 6 bits are reserved for opcode.
+        missing_bits = [bit for bit in range(26) if bit not in occupied]
         if missing_bits:
             missing = ", ".join(str(bit) for bit in missing_bits)
             errors.append(f"formats.{format_name}: bits not covered by fields: {missing}")

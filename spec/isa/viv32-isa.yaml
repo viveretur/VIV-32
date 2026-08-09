@@ -6,6 +6,9 @@ architecture:
   word_bits: 32
   address_bits: 32
   instruction_bits: 32
+  opcode:
+    shift: 26
+    width: 6
 
 registers:
   gpr:
@@ -84,7 +87,7 @@ status_register:
 formats:
   R:
     fields:
-      opcode: { bits: [31, 26] }
+      # opcode: { bits: [31, 26] }
       func:   { bits: [25, 12] }
       rd:     { bits: [11, 8] }
       ra:     { bits: [7, 4] }
@@ -92,7 +95,7 @@ formats:
 
   R2:
     fields:
-      opcode: { bits: [31, 26] }
+      # opcode: { bits: [31, 26] }
       func:   { bits: [25, 16] }
       rd0:    { bits: [15, 12] }
       rd1:    { bits: [11, 8] }
@@ -101,7 +104,7 @@ formats:
 
   I:
     fields:
-      opcode: { bits: [31, 26] }
+      # opcode: { bits: [31, 26] }
       mode:   { bits: [25, 24] }
       imm16:  { bits: [23, 8] }
       rd:     { bits: [7, 4] }
@@ -109,14 +112,14 @@ formats:
 
   U:
     fields:
-      opcode: { bits: [31, 26] }
+      # opcode: { bits: [31, 26] }
       mode:   { bits: [25, 20] }
       imm16:  { bits: [19, 4] }
       rd:     { bits: [3, 0] }
 
   M:
     fields:
-      opcode:   { bits: [31, 26] }
+      # opcode:   { bits: [31, 26] }
       sx:       { bits: [25, 25] }
       size:     { bits: [24, 23] }
       offset15: { bits: [22, 8] }
@@ -125,13 +128,13 @@ formats:
 
   BF:
     fields:
-      opcode:   { bits: [31, 26] }
+      # opcode:   { bits: [31, 26] }
       cond:     { bits: [25, 22] }
       offset22: { bits: [21, 0] }
 
   BC:
     fields:
-      opcode:   { bits: [31, 26] }
+      # opcode:   { bits: [31, 26] }
       cond:     { bits: [25, 22] }
       offset14: { bits: [21, 8] }
       ra:       { bits: [7, 4] }
@@ -139,19 +142,19 @@ formats:
 
   J:
     fields:
-      opcode:   { bits: [31, 26] }
+      # opcode:   { bits: [31, 26] }
       offset26: { bits: [25, 0] }
 
   JR:
     fields:
-      opcode: { bits: [31, 26] }
+      # opcode: { bits: [31, 26] }
       func:   { bits: [25, 8] }
       rd:     { bits: [7, 4] }
       target: { bits: [3, 0] }
 
   X:
     fields:
-      opcode:  { bits: [31, 26] }
+      # opcode:  { bits: [31, 26] }
       sysfunc: { bits: [25, 8] }
       rd:      { bits: [7, 4] }
       rs:      { bits: [3, 0] }

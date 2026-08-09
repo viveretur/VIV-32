@@ -180,6 +180,16 @@ def emit_architecture(w: RustWriter, spec: dict[str, Any]) -> None:
         if key in arch:
             w.const_u32(rust_ident(key), parse_int(arch[key], f"architecture.{key}"))
 
+    for key in ["opcode"]:
+        opdata = arch.get(key)
+        if isinstance(opdata, dict):
+            if "shift" in opdata:
+                w.const_u32(f"{rust_ident(key)}_SHIFT", parse_int(opdata["shift"], f"architecture.{key}.shift"))
+            if "width" in opdata:
+                width = parse_int(opdata["width"], f"architecture.{key}.width")
+                w.const_u32(f"{rust_ident(key)}_WIDTH", width)
+                w.const_u32(f"{rust_ident(key)}_MASK", (1 << width) - 1)
+        
     w.close()
     w.write()
 

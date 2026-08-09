@@ -13,6 +13,9 @@ pub mod architecture {
     pub const WORD_BITS: u32 = 0x20;
     pub const ADDRESS_BITS: u32 = 0x20;
     pub const INSTRUCTION_BITS: u32 = 0x20;
+    pub const OPCODE_SHIFT: u32 = 0x1A;
+    pub const OPCODE_WIDTH: u32 = 0x6;
+    pub const OPCODE_MASK: u32 = 0x3F;
 }
 
 pub mod gpr {
@@ -91,10 +94,6 @@ pub mod sr {
 
 pub mod format {
     pub mod r {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const FUNC_SHIFT: u32 = 0xC;
         pub const FUNC_WIDTH: u32 = 0xE;
         pub const FUNC_MASK: u32 = 0x03FFF000;
@@ -114,10 +113,6 @@ pub mod format {
     }
 
     pub mod r2 {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const FUNC_SHIFT: u32 = 0x10;
         pub const FUNC_WIDTH: u32 = 0xA;
         pub const FUNC_MASK: u32 = 0x03FF0000;
@@ -141,10 +136,6 @@ pub mod format {
     }
 
     pub mod i {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const MODE_SHIFT: u32 = 0x18;
         pub const MODE_WIDTH: u32 = 0x2;
         pub const MODE_MASK: u32 = 0x03000000;
@@ -164,10 +155,6 @@ pub mod format {
     }
 
     pub mod u {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const MODE_SHIFT: u32 = 0x14;
         pub const MODE_WIDTH: u32 = 0x6;
         pub const MODE_MASK: u32 = 0x03F00000;
@@ -183,10 +170,6 @@ pub mod format {
     }
 
     pub mod m {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const SX_SHIFT: u32 = 0x19;
         pub const SX_WIDTH: u32 = 0x1;
         pub const SX_MASK: u32 = 0x02000000;
@@ -210,10 +193,6 @@ pub mod format {
     }
 
     pub mod bf {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const COND_SHIFT: u32 = 0x16;
         pub const COND_WIDTH: u32 = 0x4;
         pub const COND_MASK: u32 = 0x03C00000;
@@ -225,10 +204,6 @@ pub mod format {
     }
 
     pub mod bc {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const COND_SHIFT: u32 = 0x16;
         pub const COND_WIDTH: u32 = 0x4;
         pub const COND_MASK: u32 = 0x03C00000;
@@ -248,10 +223,6 @@ pub mod format {
     }
 
     pub mod j {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const OFFSET26_SHIFT: u32 = 0x0;
         pub const OFFSET26_WIDTH: u32 = 0x1A;
         pub const OFFSET26_MASK: u32 = 0x03FFFFFF;
@@ -259,10 +230,6 @@ pub mod format {
     }
 
     pub mod jr {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const FUNC_SHIFT: u32 = 0x8;
         pub const FUNC_WIDTH: u32 = 0x12;
         pub const FUNC_MASK: u32 = 0x03FFFF00;
@@ -278,10 +245,6 @@ pub mod format {
     }
 
     pub mod x {
-        pub const OPCODE_SHIFT: u32 = 0x1A;
-        pub const OPCODE_WIDTH: u32 = 0x6;
-        pub const OPCODE_MASK: u32 = 0xFC000000;
-
         pub const SYSFUNC_SHIFT: u32 = 0x8;
         pub const SYSFUNC_WIDTH: u32 = 0x12;
         pub const SYSFUNC_MASK: u32 = 0x03FFFF00;

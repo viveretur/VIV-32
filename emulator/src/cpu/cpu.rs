@@ -1,6 +1,7 @@
 use super::{GprFile, ProgramCounter, StatusRegister};
 
 use crate::{
+    isa::generated,
     lifecycle::{Init, Reset, Tick},
     platform::{SystemBus, SystemBusError},
 };
@@ -52,6 +53,22 @@ impl TryFrom<u32> for ExceptionCause {
             _ => Err(()),
         }
     }
+}
+
+pub enum DecodedInstruction {
+    Nop,
+    Add { rd: u8, ra: u8, rb: u8 },
+    Sub { rd: u8, ra: u8, rb: u8 },
+    LoadWord { rd: u8, base: u8, offset: i16 },
+    StoreWord { rs: u8, base: u8, offset: i16 },
+    SystemCall,
+    SoftwareTrap { code: u16 },
+    Halt,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DecodeError {
+    IllegalInstruction(u32),
 }
 
 #[derive(Debug)]
@@ -139,6 +156,10 @@ impl Cpu {
         self.state = CpuState::Halted;
     }
 
+    pub fn is_halted(&self) -> bool {
+        self.state == CpuState::Halted
+    }
+
     fn tick_with_bus(&mut self) {
         if self.is_halted() {
             return;
@@ -168,15 +189,27 @@ impl Cpu {
         self.pc.advance_word();
 
         // Decode/execute later. NOP for now.
-        if instruction != 0 {
-            self.raise_exception(ExceptionCause::IllegalInstruction, pc);
+        match Self::decode(instruction) {
+            Ok(decoded) => self.execute(decoded),
+            Err(_) => self.raise_exception(ExceptionCause::IllegalInstruction, pc),
         }
 
         self.bus.tick();
     }
 
-    pub fn is_halted(&self) -> bool {
-        self.state == CpuState::Halted
+    fn decode(raw: u32) -> Result<DecodedInstruction, DecodeError> {
+        let opcode =
+            (raw >> generated::architecture::OPCODE_SHIFT) & generated::architecture::OPCODE_MASK;
+
+        match opcode {
+            generated::opcode::SYSTEM_CONTROL => Ok(DecodedInstruction::Nop),
+
+            _ => Err(DecodeError::IllegalInstruction(raw)),
+        }
+    }
+
+    fn execute(&mut self, _instruction: DecodedInstruction) {
+        // Does nothing for now.
     }
 }
 
