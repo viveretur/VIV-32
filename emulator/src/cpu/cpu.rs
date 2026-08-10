@@ -1,7 +1,9 @@
-use super::{GprFile, ProgramCounter, StatusRegister};
+use super::{
+    CregFile, ExceptionCause, GprFile,
+    decode::{DecodedInstruction, decode},
+};
 
 use crate::{
-    isa::generated,
     lifecycle::{Init, Reset, Tick},
     platform::{SystemBus, SystemBusError},
 };
@@ -12,76 +14,10 @@ pub enum CpuState {
     Halted,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum ExceptionCause {
-    Reset = 0x00,
-    IllegalInstruction = 0x01,
-    MisalignedInstructionFetch = 0x02,
-    MisalignedDataAccess = 0x03,
-    SoftwareTrap = 0x04,
-    SystemCall = 0x05,
-    TimerInterrupt = 0x06,
-    ExternalInterrupt = 0x07,
-}
-
-impl ExceptionCause {
-    pub const SLOT_SIZE: u32 = 16;
-    pub const TABLE_SIZE: u32 = 8 * Self::SLOT_SIZE;
-
-    pub fn code(self) -> u32 {
-        self as u32
-    }
-
-    pub fn vector_offset(self) -> u32 {
-        self.code() * Self::SLOT_SIZE
-    }
-}
-
-impl TryFrom<u32> for ExceptionCause {
-    type Error = ();
-
-    fn try_from(value: u32) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::Reset),
-            1 => Ok(Self::IllegalInstruction),
-            2 => Ok(Self::MisalignedInstructionFetch),
-            3 => Ok(Self::MisalignedDataAccess),
-            4 => Ok(Self::SoftwareTrap),
-            5 => Ok(Self::SystemCall),
-            6 => Ok(Self::TimerInterrupt),
-            7 => Ok(Self::ExternalInterrupt),
-            _ => Err(()),
-        }
-    }
-}
-
-pub enum DecodedInstruction {
-    Nop,
-    Add { rd: u8, ra: u8, rb: u8 },
-    Sub { rd: u8, ra: u8, rb: u8 },
-    LoadWord { rd: u8, base: u8, offset: i16 },
-    StoreWord { rs: u8, base: u8, offset: i16 },
-    SystemCall,
-    SoftwareTrap { code: u16 },
-    Halt,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DecodeError {
-    IllegalInstruction(u32),
-}
-
 #[derive(Debug)]
 pub struct Cpu {
     gpr: GprFile,
-    pc: ProgramCounter,
-    sr: StatusRegister,
-
-    epc: u32,
-    ecause: ExceptionCause,
-    eaddr: u32,
-    evbase: u32,
-
+    creg: CregFile,
     bus: SystemBus,
     state: CpuState,
 }
@@ -90,65 +26,26 @@ impl Cpu {
     pub fn new(bus: SystemBus) -> Self {
         Self {
             gpr: GprFile::new(),
-            pc: ProgramCounter::new(),
-            sr: StatusRegister::new(),
-
-            epc: 0,
-            ecause: ExceptionCause::Reset,
-            eaddr: 0,
-            evbase: 0,
-
+            creg: CregFile::new(),
             bus,
             state: CpuState::Halted,
         }
     }
 
-    pub(crate) fn pc(&self) -> u32 {
-        self.pc.get()
+    fn read_gpr(&self, index: u8) -> u32 {
+        self.gpr.read(index as usize)
     }
 
-    fn sr(&self) -> u32 {
-        self.sr.get()
-    }
-
-    fn read_gpr(&self, index: usize) -> u32 {
-        self.gpr.read(index)
-    }
-
-    fn write_gpr(&mut self, index: usize, value: u32) {
-        self.gpr.write(index, value);
-    }
-
-    fn set_pc(&mut self, value: u32) {
-        self.pc.set(value);
-    }
-
-    fn set_sr(&mut self, value: u32) {
-        self.sr.set(value);
-    }
-
-    pub fn ecause(&self) -> u32 {
-        self.ecause.code()
-    }
-
-    fn raise_exception(&mut self, cause: ExceptionCause, addr: u32) {
-        self.epc = self.pc.get();
-        self.ecause = cause;
-        self.eaddr = addr;
-        self.pc.set(self.ecause.vector_offset());
+    fn write_gpr(&mut self, index: u8, value: u32) {
+        self.gpr.write(index as usize, value);
     }
 
     pub fn reset(&mut self) {
+        // Reset is vector cause 0. With the default evbase of 0, reset begins at
+        // physical address 0, where the reset stub is expected to jump to boot code.
         self.gpr.reset();
-        self.pc
-            .set(self.evbase + ExceptionCause::Reset.vector_offset());
-        self.sr.reset();
-
-        self.epc = 0;
-        self.ecause = ExceptionCause::Reset;
-        self.eaddr = 0;
+        self.creg.reset();
         self.state = CpuState::Running;
-
         self.bus.reset();
     }
 
@@ -165,51 +62,137 @@ impl Cpu {
             return;
         }
 
-        let pc = self.pc.get();
+        let fetch_pc = self.creg.pc();
 
-        let instruction = match self.bus.read32(pc) {
+        let instruction = match self.bus.read32(fetch_pc) {
             Ok(instruction) => instruction,
 
+            // The bus reports data-word misalignment generically. During instruction fetch,
+            // that maps to the architectural MisalignedInstruction cause.
             Err(SystemBusError::MisalignedAccess { .. }) => {
-                self.raise_exception(ExceptionCause::MisalignedInstructionFetch, pc);
+                self.creg
+                    .raise_exception(ExceptionCause::MisalignedInstructionFetch, fetch_pc);
                 self.bus.tick();
                 return;
             }
 
+            // Unsupported/unmapped fetch has no dedicated architectural cause in the current
+            // 8-entry exception table, so the reference machine halts and preserves state
+            // for debugger/test inspection.
             Err(
                 SystemBusError::AddressUnmapped { .. } | SystemBusError::UnsupportedAccess { .. },
             ) => {
-                // The processor cannot handle these.
-                self.eaddr = pc;
+                self.creg.set_eaddr(fetch_pc);
                 self.halt();
                 return;
             }
         };
 
-        self.pc.advance_word();
+        self.creg.advance_pc_word();
 
         // Decode/execute later. NOP for now.
-        match Self::decode(instruction) {
+        match decode(instruction) {
             Ok(decoded) => self.execute(decoded),
-            Err(_) => self.raise_exception(ExceptionCause::IllegalInstruction, pc),
+            Err(_) => self
+                .creg
+                .raise_exception(ExceptionCause::IllegalInstruction, fetch_pc),
         }
 
         self.bus.tick();
     }
 
-    fn decode(raw: u32) -> Result<DecodedInstruction, DecodeError> {
-        let opcode =
-            (raw >> generated::architecture::OPCODE_SHIFT) & generated::architecture::OPCODE_MASK;
+    fn execute(&mut self, instruction: DecodedInstruction) {
+        match instruction {
+            DecodedInstruction::Nop => (),
+            DecodedInstruction::Halt => self.halt(),
+            DecodedInstruction::SoftwareTrap { imm } => self
+                .creg
+                .raise_exception(ExceptionCause::SoftwareTrap, imm as u32),
+            DecodedInstruction::SystemCall => self
+                .creg
+                .raise_exception(ExceptionCause::SystemCall, self.creg.pc()),
+            DecodedInstruction::IRet => self.creg.iret(),
+            DecodedInstruction::EI => self.creg.ei(),
+            DecodedInstruction::DI => self.creg.di(),
+            DecodedInstruction::RdPc { rd } => self.write_gpr(rd, self.creg.pc()),
+            DecodedInstruction::Mrs { creg4, rd } => {
+                self.write_gpr(rd, self.creg.read_register(creg4))
+            }
+            DecodedInstruction::Msr { creg4, rs } => {
+                self.creg.write_register(creg4, self.read_gpr(rs))
+            }
+            DecodedInstruction::Add { rd, ra, rb } => (),
+            DecodedInstruction::Sub { rd, ra, rb } => (),
+            DecodedInstruction::And { rd, ra, rb } => (),
+            DecodedInstruction::Or { rd, ra, rb } => (),
+            DecodedInstruction::Xor { rd, ra, rb } => (),
+            DecodedInstruction::Not { rd, ra, rb } => (),
+            DecodedInstruction::Neg { rd, ra, rb } => (),
+            DecodedInstruction::Cmp { rd, ra, rb } => (),
+            DecodedInstruction::Addi { rd, ra, sext32 } => (),
+            DecodedInstruction::Subi { rd, ra, sext32 } => (),
+            DecodedInstruction::Cmpi { rd, ra, sext32 } => (),
+            DecodedInstruction::Andi { rd, ra, imm32 } => (),
+            DecodedInstruction::Ori { rd, ra, imm32 } => (),
+            DecodedInstruction::Xori { rd, ra, imm32 } => (),
+            DecodedInstruction::Shl { rd, ra, rb } => (),
+            DecodedInstruction::Shr { rd, ra, rb } => (),
+            DecodedInstruction::Sar { rd, ra, rb } => (),
+            DecodedInstruction::Shli { rd, ra, imm } => (),
+            DecodedInstruction::Shri { rd, ra, imm } => (),
+            DecodedInstruction::Sari { rd, ra, imm } => (),
+            DecodedInstruction::Btst { rd, ra, imm } => (),
+            DecodedInstruction::Bset { rd, ra, imm } => (),
+            DecodedInstruction::Bclr { rd, ra, imm } => (),
+            DecodedInstruction::Btgl { rd, ra, imm } => (),
+            DecodedInstruction::Mul { rd0, rd1, ra, rb } => (),
+            DecodedInstruction::Mulu { rd0, rd1, ra, rb } => (),
+            DecodedInstruction::Div { rd0, rd1, ra, rb } => (),
+            DecodedInstruction::Divu { rd0, rd1, ra, rb } => (),
+            DecodedInstruction::Lui { rd, imm16 } => (),
+            DecodedInstruction::Lli { rd, imm16 } => (),
+            DecodedInstruction::Lhi { rd, imm16 } => (),
+            DecodedInstruction::Lb { rd, base, offset } => (),
+            DecodedInstruction::Lbu { rd, base, offset } => (),
+            DecodedInstruction::Lh { rd, base, offset } => (),
+            DecodedInstruction::Lhu { rd, base, offset } => (),
+            DecodedInstruction::Lw { rd, base, offset } => (),
+            DecodedInstruction::Sb { rs, base, offset } => (),
+            DecodedInstruction::Sh { rs, base, offset } => (),
+            DecodedInstruction::Sw { rs, base, offset } => (),
+            DecodedInstruction::BfEq { offset } => (),
+            DecodedInstruction::BfNe { offset } => (),
+            DecodedInstruction::BfLt { offset } => (),
+            DecodedInstruction::BfLe { offset } => (),
+            DecodedInstruction::BfGt { offset } => (),
+            DecodedInstruction::BfGe { offset } => (),
+            DecodedInstruction::BfLtu { offset } => (),
+            DecodedInstruction::BfLeu { offset } => (),
+            DecodedInstruction::BfGtu { offset } => (),
+            DecodedInstruction::BfGeu { offset } => (),
+            DecodedInstruction::BfCs { offset } => (),
+            DecodedInstruction::BfCc { offset } => (),
+            DecodedInstruction::BfVs { offset } => (),
+            DecodedInstruction::BfVc { offset } => (),
+            DecodedInstruction::BfEs { offset } => (),
+            DecodedInstruction::BfEc { offset } => (),
+            DecodedInstruction::BEq { ra, rb, offset } => (),
+            DecodedInstruction::BNe { ra, rb, offset } => (),
+            DecodedInstruction::BLt { ra, rb, offset } => (),
+            DecodedInstruction::BLe { ra, rb, offset } => (),
+            DecodedInstruction::BGt { ra, rb, offset } => (),
+            DecodedInstruction::BGe { ra, rb, offset } => (),
+            DecodedInstruction::BLtu { ra, rb, offset } => (),
+            DecodedInstruction::BLeu { ra, rb, offset } => (),
+            DecodedInstruction::BGtu { ra, rb, offset } => (),
+            DecodedInstruction::BGeu { ra, rb, offset } => (),
+            DecodedInstruction::Jmp { offset } => (),
+            DecodedInstruction::Call { offset } => (),
+            DecodedInstruction::Jr { rd, target } => (),
+            DecodedInstruction::Jalr { rd, target } => (),
 
-        match opcode {
-            generated::opcode::SYSTEM_CONTROL => Ok(DecodedInstruction::Nop),
-
-            _ => Err(DecodeError::IllegalInstruction(raw)),
+            _ => (), // Unknown instruction Nops for now
         }
-    }
-
-    fn execute(&mut self, _instruction: DecodedInstruction) {
-        // Does nothing for now.
     }
 }
 
@@ -222,8 +205,7 @@ impl Init for Cpu {
 impl Reset for Cpu {
     fn reset(&mut self) {
         self.gpr.reset();
-        self.pc.reset();
-        self.sr.reset();
+        self.creg.reset();
     }
 }
 
@@ -236,17 +218,18 @@ impl Tick for Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cpu::{ProgramCounter, StatusRegister};
     use crate::isa::generated::gpr;
 
     #[test]
     fn new_cpu_starts_reset() {
         let cpu = Cpu::new(SystemBus::new(1024));
 
-        assert_eq!(cpu.pc(), ProgramCounter::RESET_VALUE);
-        assert_eq!(cpu.sr(), StatusRegister::RESET_VALUE);
+        assert_eq!(cpu.creg.pc(), ProgramCounter::RESET_VALUE);
+        assert_eq!(cpu.creg.sr(), StatusRegister::RESET_VALUE);
 
         for index in 0..GprFile::COUNT {
-            assert_eq!(cpu.read_gpr(index), 0);
+            assert_eq!(cpu.read_gpr(index as u8), 0);
         }
     }
 
@@ -254,50 +237,50 @@ mod tests {
     fn reset_clears_cpu_state() {
         let mut cpu = Cpu::new(SystemBus::new(1024));
 
-        cpu.set_pc(0x1234_5678);
-        cpu.set_sr(0x0000_00FF);
-        cpu.write_gpr(gpr::R1, 0xAAAA_BBBB);
+        cpu.creg.set_pc(0x1234_5678);
+        cpu.creg.set_sr(0x0000_00FF);
+        cpu.write_gpr(gpr::R1 as u8, 0xAAAA_BBBB);
 
         cpu.reset();
 
-        assert_eq!(cpu.pc(), ProgramCounter::RESET_VALUE);
-        assert_eq!(cpu.sr(), StatusRegister::RESET_VALUE);
-        assert_eq!(cpu.read_gpr(gpr::R1), 0);
+        assert_eq!(cpu.creg.pc(), ProgramCounter::RESET_VALUE);
+        assert_eq!(cpu.creg.sr(), StatusRegister::RESET_VALUE);
+        assert_eq!(cpu.read_gpr(gpr::R1 as u8), 0);
     }
 
     #[test]
     fn init_resets_cpu_state() {
         let mut cpu = Cpu::new(SystemBus::new(1024));
 
-        cpu.set_pc(0x1234_5678);
-        cpu.set_sr(0x0000_00FF);
-        cpu.write_gpr(gpr::R1, 0xAAAA_BBBB);
+        cpu.creg.set_pc(0x1234_5678);
+        cpu.creg.set_sr(0x0000_00FF);
+        cpu.write_gpr(gpr::R1 as u8, 0xAAAA_BBBB);
 
         cpu.init();
 
-        assert_eq!(cpu.pc(), ProgramCounter::RESET_VALUE);
-        assert_eq!(cpu.sr(), StatusRegister::RESET_VALUE);
-        assert_eq!(cpu.read_gpr(gpr::R1), 0);
+        assert_eq!(cpu.creg.pc(), ProgramCounter::RESET_VALUE);
+        assert_eq!(cpu.creg.sr(), StatusRegister::RESET_VALUE);
+        assert_eq!(cpu.read_gpr(gpr::R1 as u8), 0);
     }
 
     #[test]
     fn r0_always_reads_as_zero() {
         let mut cpu = Cpu::new(SystemBus::new(1024));
 
-        cpu.write_gpr(gpr::R0, 0xFFFF_FFFF);
+        cpu.write_gpr(gpr::R0 as u8, 0xFFFF_FFFF);
 
-        assert_eq!(cpu.read_gpr(gpr::R0), 0);
+        assert_eq!(cpu.read_gpr(gpr::R0 as u8), 0);
     }
 
     #[test]
     fn nonzero_gprs_round_trip() {
         let mut cpu = Cpu::new(SystemBus::new(1024));
 
-        cpu.write_gpr(gpr::R1, 0x1234_5678);
-        cpu.write_gpr(gpr::R15, 0xCAFE_BABE);
+        cpu.write_gpr(gpr::R1 as u8, 0x1234_5678);
+        cpu.write_gpr(gpr::R15 as u8, 0xCAFE_BABE);
 
-        assert_eq!(cpu.read_gpr(gpr::R1), 0x1234_5678);
-        assert_eq!(cpu.read_gpr(gpr::R15), 0xCAFE_BABE);
+        assert_eq!(cpu.read_gpr(gpr::R1 as u8), 0x1234_5678);
+        assert_eq!(cpu.read_gpr(gpr::R15 as u8), 0xCAFE_BABE);
     }
 
     #[test]
@@ -306,16 +289,26 @@ mod tests {
 
         cpu.tick();
 
-        assert_eq!(cpu.pc(), ProgramCounter::RESET_VALUE);
-        assert_eq!(cpu.sr(), StatusRegister::RESET_VALUE);
+        assert_eq!(cpu.creg.pc(), ProgramCounter::RESET_VALUE);
+        assert_eq!(cpu.creg.sr(), StatusRegister::RESET_VALUE);
     }
 
     #[test]
     fn set_sr_masks_reserved_bits() {
         let mut cpu = Cpu::new(SystemBus::new(1024));
 
-        cpu.set_sr(u32::MAX);
+        cpu.creg.set_sr(u32::MAX);
 
-        assert_eq!(cpu.sr(), StatusRegister::VALID_MASK);
+        assert_eq!(cpu.creg.sr(), StatusRegister::VALID_MASK);
+    }
+
+    #[test]
+    fn tick_incrememts_pc() {
+        let mut cpu = Cpu::new(SystemBus::new(1024));
+
+        cpu.reset();
+        cpu.tick();
+
+        assert_eq!(cpu.creg.pc(), 4);
     }
 }

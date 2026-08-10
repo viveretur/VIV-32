@@ -7,9 +7,8 @@ pub struct GprFile {
 }
 
 impl GprFile {
-
     pub const COUNT: usize = gpr::COUNT as usize;
-    
+
     pub fn new() -> Self {
         Self {
             registers: [0; Self::COUNT],

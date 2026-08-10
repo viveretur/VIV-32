@@ -1,3 +1,8 @@
+//! System bus and platform address map.
+//!
+//! The bus translates CPU-visible physical addresses into RAM and memory-mapped
+//! device accesses. Multi-byte accesses are big-endian and alignment-checked here;
+//! the CPU maps resulting bus errors into architectural exceptions or halts.
 use super::{Clock, MemoryMapping, Ram, Serial, Timer, VecSerialSink};
 
 use crate::lifecycle::{Init, Reset, Tick};

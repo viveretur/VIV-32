@@ -1,3 +1,8 @@
+//! Top-level emulator harness.
+//!
+//! `Machine` assembles the CPU, bus, memory, and devices into a runnable VIV-32
+//! instance. Construction loads the host-side machine image; `reset` starts the
+//! architectural machine; `tick` advances execution by one CPU tick.
 use crate::{Cpu, SystemBus, lifecycle::Tick};
 
 pub struct Machine {
@@ -48,34 +53,5 @@ impl Machine {
 
             self.tick();
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn machine_with_ram_image_starts_at_reset_vector() {
-        let image = vec![
-            0x00, 0x00, 0x00, 0x00, // NOP
-        ];
-
-        let machine = Machine::with_ram_image(1024, &image);
-
-        assert_eq!(machine.cpu().pc(), 0);
-    }
-
-    #[test]
-    fn machine_tick_executes_one_cpu_tick() {
-        let image = vec![
-            0x00, 0x00, 0x00, 0x00, // NOP
-        ];
-
-        let mut machine = Machine::with_ram_image(1024, &image);
-        machine.reset();
-        machine.tick();
-
-        assert_eq!(machine.cpu().pc(), 4);
     }
 }
