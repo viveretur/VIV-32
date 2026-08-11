@@ -28,14 +28,14 @@ pub enum DecodedInstruction {
     Cmp { ra: u8, rb: u8 },
 
     // Immediate Arithmetic and Compare/I-type
-    Addi { rd: u8, ra: u8, sext32: i32 },
-    Subi { rd: u8, ra: u8, sext32: i32 },
-    Cmpi { ra: u8, sext32: i32 },
+    Addi { rd: u8, ra: u8, imm: u32 },
+    Subi { rd: u8, ra: u8, imm: u32 },
+    Cmpi { ra: u8, imm: u32 },
 
     // Immediate logical/I-type
-    Andi { rd: u8, ra: u8, imm32: u32 },
-    Ori { rd: u8, ra: u8, imm32: u32 },
-    Xori { rd: u8, ra: u8, imm32: u32 },
+    Andi { rd: u8, ra: u8, imm: u32 },
+    Ori { rd: u8, ra: u8, imm: u32 },
+    Xori { rd: u8, ra: u8, imm: u32 },
 
     // Register shifts/R-type
     Shl { rd: u8, ra: u8, rb: u8 },
@@ -180,29 +180,29 @@ fn decode_i(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
 
     let mode = (raw & i::MODE_MASK) >> i::MODE_SHIFT;
     let imm16 = (raw & i::IMM16_MASK) >> i::IMM16_SHIFT;
-    let sext32 = (((imm16 as i32) << 16) >> 16) as i32;
+    let imm = ((imm16 as i16) as i32) as u32;
     let ra = ((raw & i::RA_MASK) >> i::RA_SHIFT) as u8;
     let rd = ((raw & i::RD_MASK) >> i::RD_SHIFT) as u8;
 
     match (opcode, mode) {
         (opcode::IMMEDIATE_ARITHMETIC_COMPARE, immediate_arithmetic_compare::ADDI) => {
-            Ok(DecodedInstruction::Addi { rd, ra, sext32 })
+            Ok(DecodedInstruction::Addi { rd, ra, imm })
         }
         (opcode::IMMEDIATE_ARITHMETIC_COMPARE, immediate_arithmetic_compare::SUBI) => {
-            Ok(DecodedInstruction::Subi { rd, ra, sext32 })
+            Ok(DecodedInstruction::Subi { rd, ra, imm })
         }
         (opcode::IMMEDIATE_ARITHMETIC_COMPARE, immediate_arithmetic_compare::CMPI) => {
-            Ok(DecodedInstruction::Cmpi { ra, sext32 })
+            Ok(DecodedInstruction::Cmpi { ra, imm })
         }
 
         (opcode::IMMEDIATE_LOGICAL, immediate_logical::ANDI) => {
-            Ok(DecodedInstruction::Andi { rd, ra, imm32: imm16 })
+            Ok(DecodedInstruction::Andi { rd, ra, imm: imm16 })
         }
         (opcode::IMMEDIATE_LOGICAL, immediate_logical::ORI) => {
-            Ok(DecodedInstruction::Ori { rd, ra, imm32: imm16 })
+            Ok(DecodedInstruction::Ori { rd, ra, imm: imm16 })
         }
         (opcode::IMMEDIATE_LOGICAL, immediate_logical::XORI) => {
-            Ok(DecodedInstruction::Xori { rd, ra, imm32: imm16 })
+            Ok(DecodedInstruction::Xori { rd, ra, imm: imm16 })
         }
         
         (opcode::IMMEDIATE_SHIFT, immediate_shift::SHLI) => {
@@ -786,7 +786,7 @@ mod tests {
         DecodedInstruction::Addi {
             rd: 3,
             ra: 4,
-            sext32: 0x1234
+            imm: 0x1234
         }
     );
 
@@ -800,7 +800,7 @@ mod tests {
         DecodedInstruction::Addi {
             rd: 3,
             ra: 4,
-            sext32: -2
+            imm: -2i32 as u32
         }
     );
 
@@ -814,7 +814,7 @@ mod tests {
         DecodedInstruction::Subi {
             rd: 3,
             ra: 4,
-            sext32: -32768
+            imm: -32768i32 as u32
         }
     );
 
@@ -825,7 +825,10 @@ mod tests {
             generated::mode::immediate_arithmetic_compare::CMPI,
             0xFFFF,
         ),
-        DecodedInstruction::Cmpi { ra: 4, sext32: -1 }
+        DecodedInstruction::Cmpi {
+            ra: 4,
+            imm: -1i32 as u32
+        }
     );
 
     // ---------------------------------------------------------------------
@@ -842,7 +845,7 @@ mod tests {
         DecodedInstruction::Andi {
             rd: 3,
             ra: 4,
-            imm32: 0xF0F0
+            imm: 0xF0F0
         }
     );
 
@@ -856,7 +859,7 @@ mod tests {
         DecodedInstruction::Ori {
             rd: 3,
             ra: 4,
-            imm32: 0x00FF
+            imm: 0x00FF
         }
     );
 
@@ -870,7 +873,7 @@ mod tests {
         DecodedInstruction::Xori {
             rd: 3,
             ra: 4,
-            imm32: 0xAAAA
+            imm: 0xAAAA
         }
     );
 

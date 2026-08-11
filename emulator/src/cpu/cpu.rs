@@ -37,13 +37,17 @@ impl Cpu {
         self.gpr.write(index as usize, value);
     }
 
-    pub fn reset(&mut self) {
+    fn reset_internal(&mut self) {
         // Reset is vector cause 0. With the default evbase of 0, reset begins at
         // physical address 0, where the reset stub is expected to jump to boot code.
         self.gpr.reset();
         self.creg.reset();
         self.state = CpuState::Running;
         self.bus.reset();
+    }
+
+    pub fn reset(&mut self) {
+        self.reset_internal();
     }
 
     pub fn halt(&mut self) {
@@ -73,14 +77,15 @@ impl Cpu {
                 return;
             }
 
-            // Unsupported/unmapped fetch has no dedicated architectural cause in the current
-            // 8-entry exception table, so the reference machine halts and preserves state
-            // for debugger/test inspection.
+            // Raise an error if we simply couldn't read the location. This could happen
+            // because the data is read-only, or its simply beyond the installed RAM location,
+            // or a device doesn't map that area.
             Err(
                 SystemBusError::AddressUnmapped { .. } | SystemBusError::UnsupportedAccess { .. },
             ) => {
-                self.creg.write_register(Creg::EData, fetch_pc);
-                self.halt();
+                self.creg
+                    .raise_exception(ExceptionCause::BusError, fetch_pc);
+                self.bus.tick();
                 return;
             }
         };
@@ -102,7 +107,7 @@ impl Cpu {
             DecodedInstruction::Nop => (),
             DecodedInstruction::Halt => self.halt(),
             DecodedInstruction::SoftwareTrap { imm } => self.creg.raise_exception(ExceptionCause::SoftwareTrap, imm as u32),
-            DecodedInstruction::SystemCall => self.creg.raise_exception(ExceptionCause::SystemCall, self.creg.read_register(Creg::PC)),
+            DecodedInstruction::SystemCall => self.creg.raise_exception(ExceptionCause::SystemCall, 0),
             DecodedInstruction::IRet => self.creg.iret(),
             DecodedInstruction::EI => self.creg.ei(),
             DecodedInstruction::DI => self.creg.di(),
@@ -111,34 +116,34 @@ impl Cpu {
             DecodedInstruction::Msr { creg4, rs } => self.creg.write_register(creg4, self.read_gpr(rs)),
 
             // Register ALU
-            DecodedInstruction::Add { rd, ra, rb } => self.execute_add(rd, ra, rb),
-            DecodedInstruction::Sub { rd, ra, rb } => self.execute_sub(rd, ra, rb),
-            DecodedInstruction::And { rd, ra, rb } => self.execute_and(rd, ra, rb),
-            DecodedInstruction::Or { rd, ra, rb } => self.execute_or(rd, ra, rb),
-            DecodedInstruction::Xor { rd, ra, rb } => self.execute_xor(rd, ra, rb),
+            DecodedInstruction::Add { rd, ra, rb } => self.execute_add(rd, ra, self.read_gpr(rb)),
+            DecodedInstruction::Sub { rd, ra, rb } => self.execute_sub(rd, ra, self.read_gpr(rb)),
+            DecodedInstruction::And { rd, ra, rb } => self.execute_and(rd, ra, self.read_gpr(rb)),
+            DecodedInstruction::Or { rd, ra, rb } => self.execute_or(rd, ra, self.read_gpr(rb)),
+            DecodedInstruction::Xor { rd, ra, rb } => self.execute_xor(rd, ra, self.read_gpr(rb)),
             DecodedInstruction::Not { rd, ra } => self.execute_not(rd, ra),
             DecodedInstruction::Neg { rd, ra } => self.execute_neg(rd, ra),
-            DecodedInstruction::Cmp { ra, rb } => self.execute_cmp(ra, rb),
+            DecodedInstruction::Cmp { ra, rb } => self.execute_cmp(ra, self.read_gpr(rb)),
 
             // Immediate Arithmetic and Compare
-            DecodedInstruction::Addi { rd, ra, sext32 } => self.execute_addi(rd, ra, sext32),
-            DecodedInstruction::Subi { rd, ra, sext32 } => self.execute_subi(rd, ra, sext32),
-            DecodedInstruction::Cmpi { ra, sext32 } => self.execute_cmpi(ra, sext32),
+            DecodedInstruction::Addi { rd, ra, imm } => self.execute_add(rd, ra, imm),
+            DecodedInstruction::Subi { rd, ra, imm } => self.execute_sub(rd, ra, imm),
+            DecodedInstruction::Cmpi { ra, imm } => self.execute_cmp(ra, imm),
 
             // Immediate Logical
-            DecodedInstruction::Andi { rd, ra, imm32 } => self.execute_andi(rd, ra, imm32),
-            DecodedInstruction::Ori { rd, ra, imm32 } => self.execute_ori(rd, ra, imm32),
-            DecodedInstruction::Xori { rd, ra, imm32 } => self.execute_xori(rd, ra, imm32),
+            DecodedInstruction::Andi { rd, ra, imm } => self.execute_and(rd, ra, imm),
+            DecodedInstruction::Ori { rd, ra, imm } => self.execute_or(rd, ra, imm),
+            DecodedInstruction::Xori { rd, ra, imm } => self.execute_xor(rd, ra, imm),
 
             // Register Shifts
-            DecodedInstruction::Shl { rd, ra, rb } => self.execute_shl(rd, ra, rb),
-            DecodedInstruction::Shr { rd, ra, rb } => self.execute_shr(rd, ra, rb),
-            DecodedInstruction::Sar { rd, ra, rb } => self.execute_sar(rd, ra, rb),
+            DecodedInstruction::Shl { rd, ra, rb } => self.execute_shl(rd, ra, self.read_gpr(rb)),
+            DecodedInstruction::Shr { rd, ra, rb } => self.execute_shr(rd, ra, self.read_gpr(rb)),
+            DecodedInstruction::Sar { rd, ra, rb } => self.execute_sar(rd, ra, self.read_gpr(rb)),
 
             // Immediate Shifts
-            DecodedInstruction::Shli { rd, ra, imm } => self.execute_shli(rd, ra, imm),
-            DecodedInstruction::Shri { rd, ra, imm } => self.execute_shri(rd, ra, imm),
-            DecodedInstruction::Sari { rd, ra, imm } => self.execute_sari(rd, ra, imm),
+            DecodedInstruction::Shli { rd, ra, imm } => self.execute_shl(rd, ra, imm as u32),
+            DecodedInstruction::Shri { rd, ra, imm } => self.execute_shr(rd, ra, imm as u32),
+            DecodedInstruction::Sari { rd, ra, imm } => self.execute_sar(rd, ra, imm as u32),
 
             // Bit Immediate
             DecodedInstruction::Btst { ra, imm } => self.execute_btst(ra, imm),
@@ -211,46 +216,44 @@ impl Cpu {
     // Register ALU
     //
     // Add, Sub, And, Or, Xor, Not, Neg
-    fn execute_add(&mut self, rd: u8, ra: u8, rb: u8) {
+    fn execute_add(&mut self, rd: u8, ra: u8, imm: u32) {
         let a = self.read_gpr(ra);
-        let b = self.read_gpr(rb);
 
-        let (result, carry) = a.overflowing_add(b);
-        let (_, overflow) = (a as i32).overflowing_add(b as i32);
+        let (result, carry) = a.overflowing_add(imm);
+        let (_, overflow) = (a as i32).overflowing_add(imm as i32);
 
         self.write_gpr(rd, result);
         self.creg
             .update_sr_flags(false, result == 0, (result as i32) < 0, carry, overflow);
     }
 
-    fn execute_sub(&mut self, rd: u8, ra: u8, rb: u8) {
+    fn execute_sub(&mut self, rd: u8, ra: u8, imm: u32) {
         let a = self.read_gpr(ra);
-        let b = self.read_gpr(rb);
 
-        let (result, borrow) = a.overflowing_sub(b);
-        let (_, overflow) = (a as i32).overflowing_sub(b as i32);
+        let (result, borrow) = a.overflowing_sub(imm);
+        let (_, overflow) = (a as i32).overflowing_sub(imm as i32);
 
         self.write_gpr(rd, result);
         self.creg
             .update_sr_flags(false, result == 0, (result as i32) < 0, !borrow, overflow);
     }
 
-    fn execute_and(&mut self, rd: u8, ra: u8, rb: u8) {
-        let value = self.read_gpr(ra) & self.read_gpr(rb);
+    fn execute_and(&mut self, rd: u8, ra: u8, imm32: u32) {
+        let value = self.read_gpr(ra) & imm32;
         self.write_gpr(rd, value);
         self.creg
             .update_sr_flags(false, value == 0, (value as i32) < 0, false, false);
     }
 
-    fn execute_or(&mut self, rd: u8, ra: u8, rb: u8) {
-        let value = self.read_gpr(ra) | self.read_gpr(rb);
+    fn execute_or(&mut self, rd: u8, ra: u8, imm32: u32) {
+        let value = self.read_gpr(ra) | imm32;
         self.write_gpr(rd, value);
         self.creg
             .update_sr_flags(false, value == 0, (value as i32) < 0, false, false);
     }
 
-    fn execute_xor(&mut self, rd: u8, ra: u8, rb: u8) {
-        let value = self.read_gpr(ra) ^ self.read_gpr(rb);
+    fn execute_xor(&mut self, rd: u8, ra: u8, imm32: u32) {
+        let value = self.read_gpr(ra) ^ imm32;
         self.write_gpr(rd, value);
         self.creg
             .update_sr_flags(false, value == 0, (value as i32) < 0, false, false);
@@ -264,160 +267,73 @@ impl Cpu {
     }
 
     fn execute_neg(&mut self, rd: u8, ra: u8) {
-        let value = -(self.read_gpr(ra) as i32);
-        self.write_gpr(rd, value as u32);
-        self.creg
-            .update_sr_flags(false, value == 0, value < 0, false, false);
-    }
-
-    fn execute_cmp(&mut self, ra: u8, rb: u8) {
         let a = self.read_gpr(ra);
-        let b = self.read_gpr(rb);
-        let result = a.wrapping_sub(b);
-
-        let no_unsigned_borrow = a >= b;
-        let (_, overflow) = (a as i32).overflowing_sub(b as i32);
-
-        self.creg.update_sr_flags(
-            false,
-            result == 0,
-            (result as i32) < 0,
-            no_unsigned_borrow,
-            overflow,
-        );
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Immediate Arithmetic and Compare
-    fn execute_addi(&mut self, rd: u8, ra: u8, sext32: i32) {
-        let a = self.read_gpr(ra);
-        let b = sext32 as u32;
-
-        let (result, carry) = a.overflowing_add(b);
-        let (_, overflow) = (a as i32).overflowing_add(sext32);
-
+        let result = 0u32.wrapping_sub(a);
+        let overflow = (a as i32) == i32::MIN;
+        let carry = a == 0;
         self.write_gpr(rd, result);
         self.creg
             .update_sr_flags(false, result == 0, (result as i32) < 0, carry, overflow);
     }
 
-    fn execute_subi(&mut self, rd: u8, ra: u8, sext32: i32) {
+    fn execute_cmp(&mut self, ra: u8, imm: u32) {
         let a = self.read_gpr(ra);
-        let b = sext32 as u32;
-
-        let (result, borrow) = a.overflowing_sub(b);
-        let (_, overflow) = (a as i32).overflowing_sub(sext32);
-
-        self.write_gpr(rd, result);
-        self.creg
-            .update_sr_flags(false, result == 0, (result as i32) < 0, !borrow, overflow);
-    }
-
-    fn execute_cmpi(&mut self, ra: u8, sext32: i32) {
-        let a = self.read_gpr(ra);
-        let b_bits = sext32 as u32;
-        let (_, overflow) = (a as i32).overflowing_sub(sext32);
+        let (_, overflow) = (a as i32).overflowing_sub(imm as i32);
 
         self.creg.update_sr_flags(
             false,
-            a == b_bits,
-            (a.wrapping_sub(b_bits) as i32) < 0,
-            a >= b_bits,
+            a == imm,
+            (a.wrapping_sub(imm) as i32) < 0,
+            a >= imm,
             overflow,
         );
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // Immediate Logical
-    fn execute_andi(&mut self, rd: u8, ra: u8, imm32: u32) {
-        let value = self.read_gpr(ra) & imm32;
-        self.write_gpr(rd, value);
+    // Shifts
+    fn shift_guard(&mut self, count: u32) -> Option<u8> {
+        if count > 31 {
+            self.creg.update_sr_flags(true, false, false, false, false);
+            None
+        } else {
+            Some(count as u8)
+        }
+    }
+
+    fn execute_shl(&mut self, rd: u8, ra: u8, imm: u32) {
+        let Some(shift) = self.shift_guard(imm) else {
+            return;
+        };
+        let value = self.read_gpr(ra);
+        let carry = shift != 0 && ((value >> (32 - shift)) & 1) != 0;
+        let result = value << shift;
+        self.write_gpr(rd, result);
         self.creg
-            .update_sr_flags(false, value == 0, (value as i32) < 0, false, false);
+            .update_sr_flags(false, result == 0, (result as i32) < 0, carry, false);
     }
 
-    fn execute_ori(&mut self, rd: u8, ra: u8, imm32: u32) {
-        let value = self.read_gpr(ra) | imm32;
-        self.write_gpr(rd, value);
+    fn execute_shr(&mut self, rd: u8, ra: u8, imm: u32) {
+        let Some(shift) = self.shift_guard(imm) else {
+            return;
+        };
+        let original = self.read_gpr(ra);
+        let carry = shift != 0 && ((original >> (shift - 1)) & 1) != 0;
+        let result = original >> shift;
+        self.write_gpr(rd, result);
         self.creg
-            .update_sr_flags(false, value == 0, (value as i32) < 0, false, false);
+            .update_sr_flags(false, result == 0, (result as i32) < 0, carry, false);
     }
 
-    fn execute_xori(&mut self, rd: u8, ra: u8, imm32: u32) {
-        let value = self.read_gpr(ra) ^ imm32;
-        self.write_gpr(rd, value);
+    fn execute_sar(&mut self, rd: u8, ra: u8, imm: u32) {
+        let Some(shift) = self.shift_guard(imm) else {
+            return;
+        };
+        let original = self.read_gpr(ra) as i32;
+        let carry = shift != 0 && (((original as u32) >> (shift - 1)) & 1) != 0;
+        let result = original >> shift;
+        self.write_gpr(rd, result as u32);
         self.creg
-            .update_sr_flags(false, value == 0, (value as i32) < 0, false, false);
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Register Shifts
-    fn execute_shl(&mut self, rd: u8, ra: u8, rb: u8) {
-        let value = (self.read_gpr(ra) as u64) << self.read_gpr(rb) as u8;
-        let carry = (value >> 32) & 0x01;
-        self.write_gpr(rd, value as u32);
-        self.creg.sr().clear_condition_flags();
-        self.creg.sr().set_carry(carry != 0);
-    }
-
-    fn execute_shr(&mut self, rd: u8, ra: u8, rb: u8) {
-        self.creg.sr().clear_condition_flags();
-        let mut value = self.read_gpr(ra);
-        let imm = self.read_gpr(rb) as u8;
-        if imm != 0 {
-            value >>= imm - 1;
-            let carry = value & 0x01;
-            value >>= 1;
-            self.creg.sr().set_carry(carry != 0);
-        }
-        self.write_gpr(rd, value);
-    }
-
-    fn execute_sar(&mut self, rd: u8, ra: u8, rb: u8) {
-        self.creg.sr().clear_condition_flags();
-        let mut value = self.read_gpr(ra) as i32;
-        let imm = self.read_gpr(rb) as u8;
-        if imm != 0 {
-            value >>= imm - 1;
-            let carry = value & 0x01;
-            value >>= 1;
-            self.creg.sr().set_carry(carry != 0);
-        }
-        self.write_gpr(rd, value as u32);
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Immediate Shift
-    fn execute_shli(&mut self, rd: u8, ra: u8, imm: u8) {
-        let value = (self.read_gpr(ra) as u64) << imm;
-        let carry = (value >> 32) & 0x01;
-        self.write_gpr(rd, value as u32);
-        self.creg.sr().clear_condition_flags();
-        self.creg.sr().set_carry(carry != 0);
-    }
-
-    fn execute_shri(&mut self, rd: u8, ra: u8, imm: u8) {
-        self.creg.sr().clear_condition_flags();
-        let mut value = self.read_gpr(ra);
-        if imm != 0 {
-            value >>= imm - 1;
-            let carry = value & 0x01;
-            value >>= 1;
-            self.creg.sr().set_carry(carry != 0);
-        }
-        self.write_gpr(rd, value);
-    }
-
-    fn execute_sari(&mut self, rd: u8, ra: u8, imm: u8) {
-        self.creg.sr().clear_condition_flags();
-        let mut value = self.read_gpr(ra) as i32;
-        if imm != 0 {
-            value >>= imm - 1;
-            let carry = value & 0x01;
-            value >>= 1;
-            self.creg.sr().set_carry(carry != 0);
-        }
-        self.write_gpr(rd, value as u32);
+            .update_sr_flags(false, result == 0, result < 0, carry, false);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -425,8 +341,8 @@ impl Cpu {
     fn execute_btst(&mut self, ra: u8, imm: u8) {
         let mask = 0x01u32 << imm;
         let value = self.read_gpr(ra) & mask;
-        self.creg.sr().clear_condition_flags();
-        self.creg.sr().set_zero(value == 0);
+        self.creg
+            .update_sr_flags(false, value == 0, false, false, false);
     }
 
     fn execute_bset(&mut self, rd: u8, ra: u8, imm: u8) {
@@ -456,7 +372,7 @@ impl Cpu {
     ///////////////////////////////////////////////////////////////////////////
     // Multiply and Divide
     fn execute_mul(&mut self, rd0: u8, rd1: u8, ra: u8, rb: u8) {
-        let result = self.read_gpr(ra) as i64 * self.read_gpr(rb) as i64;
+        let result = self.read_gpr(ra) as i32 as i64 * self.read_gpr(rb) as i32 as i64;
         self.write_gpr(rd0, result as u32);
         self.write_gpr(rd1, (result >> 32) as u32);
         self.creg
@@ -468,7 +384,7 @@ impl Cpu {
         self.write_gpr(rd0, result as u32);
         self.write_gpr(rd1, (result >> 32) as u32);
         self.creg
-            .update_sr_flags(false, result == 0, (result as i64) < 0, false, false);
+            .update_sr_flags(false, result == 0, false, false, false);
     }
 
     fn execute_div(&mut self, rd0: u8, rd1: u8, ra: u8, rb: u8) {
@@ -510,44 +426,50 @@ impl Cpu {
         self.write_gpr(rd1, remainder);
 
         self.creg
-            .update_sr_flags(false, quotient == 0, (quotient as i32) < 0, false, false);
+            .update_sr_flags(false, quotient == 0, false, false, false);
     }
 
     ///////////////////////////////////////////////////////////////////////////
     // Constant Construction
     fn execute_lui(&mut self, rd: u8, imm16: u16) {
-        self.write_gpr(rd, (imm16 as u32) << 16);
+        let value = (imm16 as u32) << 16;
+        self.write_gpr(rd, value);
         self.creg
-            .update_sr_flags(false, imm16 == 0, (imm16 as i32) < 0, false, false);
+            .update_sr_flags(false, value == 0, (value as i32) < 0, false, false);
     }
 
     fn execute_lli(&mut self, rd: u8, imm16: u16) {
         self.write_gpr(rd, imm16 as u32);
         self.creg
-            .update_sr_flags(false, imm16 == 0, (imm16 as i32) < 0, false, false);
+            .update_sr_flags(false, imm16 == 0, false, false, false);
     }
 
     fn execute_lhi(&mut self, rd: u8, imm16: u16) {
         let value = ((imm16 as u32) << 16) | self.read_gpr(rd);
         self.write_gpr(rd, value);
         self.creg
-            .update_sr_flags(false, imm16 == 0, (imm16 as i32) < 0, false, false);
+            .update_sr_flags(false, value == 0, (value as i32) < 0, false, false);
     }
 
     ///////////////////////////////////////////////////////////////////////////
     // Load and Store
+    fn load_store_bus_error(&mut self, error: SystemBusError, address: u32) {
+        match error {
+            SystemBusError::MisalignedAccess { .. } => {
+                self.creg
+                    .raise_exception(ExceptionCause::MisalignedDataAccess, address);
+            }
+            SystemBusError::AddressUnmapped { .. } | SystemBusError::UnsupportedAccess { .. } => {
+                self.creg.raise_exception(ExceptionCause::BusError, address);
+            }
+        }
+    }
+
     fn execute_lb(&mut self, rd: u8, base: u8, offset: i32) {
         let address = self.read_gpr(base).wrapping_add_signed(offset);
         match self.bus.read8(address) {
             Ok(data) => self.write_gpr(rd, data as i8 as i32 as u32),
-            Err(SystemBusError::MisalignedAccess { .. }) => {
-                self.creg
-                    .raise_exception(ExceptionCause::MisalignedDataAccess, address);
-            }
-            Err(SystemBusError::AddressUnmapped { .. })
-            | Err(SystemBusError::UnsupportedAccess { .. }) => {
-                self.creg.raise_exception(ExceptionCause::BusError, address);
-            }
+            Err(error) => self.load_store_bus_error(error, address),
         }
     }
 
@@ -555,14 +477,7 @@ impl Cpu {
         let address = self.read_gpr(base).wrapping_add_signed(offset);
         match self.bus.read8(address) {
             Ok(data) => self.write_gpr(rd, data as u32),
-            Err(SystemBusError::MisalignedAccess { .. }) => {
-                self.creg
-                    .raise_exception(ExceptionCause::MisalignedDataAccess, address);
-            }
-            Err(SystemBusError::AddressUnmapped { .. })
-            | Err(SystemBusError::UnsupportedAccess { .. }) => {
-                self.creg.raise_exception(ExceptionCause::BusError, address);
-            }
+            Err(error) => self.load_store_bus_error(error, address),
         }
     }
 
@@ -570,14 +485,7 @@ impl Cpu {
         let address = self.read_gpr(base).wrapping_add_signed(offset);
         match self.bus.read16(address) {
             Ok(data) => self.write_gpr(rd, data as i16 as i32 as u32),
-            Err(SystemBusError::MisalignedAccess { .. }) => {
-                self.creg
-                    .raise_exception(ExceptionCause::MisalignedDataAccess, address);
-            }
-            Err(SystemBusError::AddressUnmapped { .. })
-            | Err(SystemBusError::UnsupportedAccess { .. }) => {
-                self.creg.raise_exception(ExceptionCause::BusError, address);
-            }
+            Err(error) => self.load_store_bus_error(error, address),
         }
     }
 
@@ -585,14 +493,7 @@ impl Cpu {
         let address = self.read_gpr(base).wrapping_add_signed(offset);
         match self.bus.read16(address) {
             Ok(data) => self.write_gpr(rd, data as u32),
-            Err(SystemBusError::MisalignedAccess { .. }) => {
-                self.creg
-                    .raise_exception(ExceptionCause::MisalignedDataAccess, address);
-            }
-            Err(SystemBusError::AddressUnmapped { .. })
-            | Err(SystemBusError::UnsupportedAccess { .. }) => {
-                self.creg.raise_exception(ExceptionCause::BusError, address);
-            }
+            Err(error) => self.load_store_bus_error(error, address),
         }
     }
 
@@ -600,14 +501,7 @@ impl Cpu {
         let address = self.read_gpr(base).wrapping_add_signed(offset);
         match self.bus.read32(address) {
             Ok(data) => self.write_gpr(rd, data),
-            Err(SystemBusError::MisalignedAccess { .. }) => {
-                self.creg
-                    .raise_exception(ExceptionCause::MisalignedDataAccess, address);
-            }
-            Err(SystemBusError::AddressUnmapped { .. })
-            | Err(SystemBusError::UnsupportedAccess { .. }) => {
-                self.creg.raise_exception(ExceptionCause::BusError, address);
-            }
+            Err(error) => self.load_store_bus_error(error, address),
         }
     }
 
@@ -615,14 +509,7 @@ impl Cpu {
         let address = self.read_gpr(base).wrapping_add_signed(offset);
         match self.bus.write8(address, self.read_gpr(rs) as u8) {
             Ok(_) => (),
-            Err(SystemBusError::MisalignedAccess { .. }) => {
-                self.creg
-                    .raise_exception(ExceptionCause::MisalignedDataAccess, address);
-            }
-            Err(SystemBusError::AddressUnmapped { .. })
-            | Err(SystemBusError::UnsupportedAccess { .. }) => {
-                self.creg.raise_exception(ExceptionCause::BusError, address);
-            }
+            Err(error) => self.load_store_bus_error(error, address),
         }
     }
 
@@ -630,14 +517,7 @@ impl Cpu {
         let address = self.read_gpr(base).wrapping_add_signed(offset);
         match self.bus.write16(address, self.read_gpr(rs) as u16) {
             Ok(_) => (),
-            Err(SystemBusError::MisalignedAccess { .. }) => {
-                self.creg
-                    .raise_exception(ExceptionCause::MisalignedDataAccess, address);
-            }
-            Err(SystemBusError::AddressUnmapped { .. })
-            | Err(SystemBusError::UnsupportedAccess { .. }) => {
-                self.creg.raise_exception(ExceptionCause::BusError, address);
-            }
+            Err(error) => self.load_store_bus_error(error, address),
         }
     }
 
@@ -645,14 +525,7 @@ impl Cpu {
         let address = self.read_gpr(base).wrapping_add_signed(offset);
         match self.bus.write32(address, self.read_gpr(rs)) {
             Ok(_) => (),
-            Err(SystemBusError::MisalignedAccess { .. }) => {
-                self.creg
-                    .raise_exception(ExceptionCause::MisalignedDataAccess, address);
-            }
-            Err(SystemBusError::AddressUnmapped { .. })
-            | Err(SystemBusError::UnsupportedAccess { .. }) => {
-                self.creg.raise_exception(ExceptionCause::BusError, address);
-            }
+            Err(error) => self.load_store_bus_error(error, address),
         }
     }
 
@@ -850,14 +723,13 @@ impl Cpu {
 
 impl Init for Cpu {
     fn init(&mut self) {
-        self.reset();
+        self.reset_internal();
     }
 }
 
 impl Reset for Cpu {
     fn reset(&mut self) {
-        self.gpr.reset();
-        self.creg.reset();
+        self.reset_internal();
     }
 }
 
@@ -874,7 +746,7 @@ mod tests {
     use crate::isa::generated::gpr;
 
     #[test]
-    fn new_cpu_starts_reset() {
+    fn new_cpu_starts_halted_with_reset_registers() {
         let cpu = Cpu::new(SystemBus::new(1024));
 
         assert_eq!(
@@ -954,7 +826,7 @@ mod tests {
     }
 
     #[test]
-    fn tick_is_currently_a_noop() {
+    fn halted_tick_is_a_noop() {
         let mut cpu = Cpu::new(SystemBus::new(1024));
 
         cpu.tick();
@@ -979,12 +851,1095 @@ mod tests {
     }
 
     #[test]
-    fn tick_incrememts_pc() {
+    fn tick_increments_pc() {
         let mut cpu = Cpu::new(SystemBus::new(1024));
 
         cpu.reset();
         cpu.tick();
 
         assert_eq!(cpu.creg.read_register(Creg::PC), 4);
+    }
+}
+
+#[cfg(test)]
+mod instruction_unit_tests {
+    use super::*;
+    use crate::isa::generated::gpr;
+
+    fn cpu() -> Cpu {
+        let mut cpu = Cpu::new(SystemBus::new(4096));
+        cpu.reset();
+        cpu
+    }
+
+    fn r(reg: usize) -> u8 {
+        reg as u8
+    }
+
+    fn set(cpu: &mut Cpu, reg: usize, value: u32) {
+        cpu.write_gpr(r(reg), value);
+    }
+
+    fn get(cpu: &Cpu, reg: usize) -> u32 {
+        cpu.read_gpr(r(reg))
+    }
+
+    fn set_pc(cpu: &mut Cpu, value: u32) {
+        cpu.creg.write_register(Creg::PC, value);
+    }
+
+    fn pc(cpu: &Cpu) -> u32 {
+        cpu.creg.read_register(Creg::PC)
+    }
+
+    fn assert_flags(cpu: &mut Cpu, ae: bool, z: bool, n: bool, c: bool, v: bool) {
+        assert_eq!(cpu.creg.sr().arithmetic_error(), ae, "AE");
+        assert_eq!(cpu.creg.sr().zero(), z, "Z");
+        assert_eq!(cpu.creg.sr().negative(), n, "N");
+        assert_eq!(cpu.creg.sr().carry(), c, "C");
+        assert_eq!(cpu.creg.sr().overflow(), v, "V");
+    }
+
+    fn assert_exception(cpu: &Cpu, cause: ExceptionCause, edata: u32) {
+        assert_eq!(cpu.creg.read_register(Creg::ECause), cause as u32, "ECAUSE");
+        assert_eq!(cpu.creg.read_register(Creg::EData), edata, "EDATA");
+    }
+
+    // ---------------------------------------------------------------------
+    // Control instructions
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn nop_leaves_visible_state_unchanged() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        set(&mut cpu, gpr::R1, 0xCAFE_BABE);
+        cpu.creg.update_sr_flags(false, false, true, true, false);
+
+        cpu.execute(DecodedInstruction::Nop);
+
+        assert_eq!(pc(&cpu), 0x100);
+        assert_eq!(get(&cpu, gpr::R1), 0xCAFE_BABE);
+        assert_flags(&mut cpu, false, false, true, true, false);
+        assert!(!cpu.is_halted());
+    }
+
+    #[test]
+    fn halt_sets_cpu_halted() {
+        let mut cpu = cpu();
+        cpu.execute(DecodedInstruction::Halt);
+        assert!(cpu.is_halted());
+    }
+
+    #[test]
+    fn rdpc_reads_current_pc() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x1234_5678);
+        cpu.execute(DecodedInstruction::RdPc { rd: r(gpr::R2) });
+        assert_eq!(get(&cpu, gpr::R2), 0x1234_5678);
+    }
+
+    #[test]
+    fn mrs_reads_control_register() {
+        let mut cpu = cpu();
+        cpu.creg.write_register(Creg::EData, 0xDEAD_BEEF);
+        cpu.execute(DecodedInstruction::Mrs {
+            creg4: Creg::EData,
+            rd: r(gpr::R3),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xDEAD_BEEF);
+    }
+
+    #[test]
+    fn msr_writes_control_register() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R3, 0xBEEF_CAFE);
+        cpu.execute(DecodedInstruction::Msr {
+            creg4: Creg::EData,
+            rs: r(gpr::R3),
+        });
+        assert_eq!(cpu.creg.read_register(Creg::EData), 0xBEEF_CAFE);
+    }
+
+    #[test]
+    fn syscall_raises_system_call_with_zero_edata() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x200);
+        cpu.execute(DecodedInstruction::SystemCall);
+        assert_exception(&cpu, ExceptionCause::SystemCall, 0);
+        assert_eq!(cpu.creg.read_register(Creg::EPC), 0x200);
+    }
+
+    #[test]
+    fn software_trap_raises_trap_with_imm_edata() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x204);
+        cpu.execute(DecodedInstruction::SoftwareTrap { imm: -4 });
+        assert_exception(&cpu, ExceptionCause::SoftwareTrap, 0xFFFF_FFFC);
+        assert_eq!(cpu.creg.read_register(Creg::EPC), 0x204);
+    }
+
+    #[test]
+    fn iret_restores_pc_and_sr() {
+        let mut cpu = cpu();
+        cpu.creg.write_register(Creg::EPC, 0x3456_789A);
+        cpu.creg.write_register(Creg::ESR, 0x0000_001F);
+        cpu.execute(DecodedInstruction::IRet);
+        assert_eq!(cpu.creg.read_register(Creg::PC), 0x3456_789A);
+        assert_eq!(cpu.creg.read_register(Creg::SR), 0x0000_001F);
+    }
+
+    // ---------------------------------------------------------------------
+    // Add/Sub/Cmp, including immediate forms
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn add_sets_unsigned_carry_and_zero() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
+        set(&mut cpu, gpr::R2, 1);
+        cpu.execute(DecodedInstruction::Add {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0);
+        assert_flags(&mut cpu, false, true, false, true, false);
+    }
+
+    #[test]
+    fn add_sets_signed_overflow() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x7FFF_FFFF);
+        set(&mut cpu, gpr::R2, 1);
+        cpu.execute(DecodedInstruction::Add {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x8000_0000);
+        assert_flags(&mut cpu, false, false, true, false, true);
+    }
+
+    #[test]
+    fn addi_uses_sign_extended_bit_pattern() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 1);
+        cpu.execute(DecodedInstruction::Addi {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 0xFFFF_FFFF,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0);
+        assert_flags(&mut cpu, false, true, false, true, false);
+    }
+
+    #[test]
+    fn sub_sets_unsigned_borrow_as_carry_clear() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0);
+        set(&mut cpu, gpr::R2, 1);
+        cpu.execute(DecodedInstruction::Sub {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xFFFF_FFFF);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn sub_sets_signed_overflow() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x8000_0000);
+        set(&mut cpu, gpr::R2, 1);
+        cpu.execute(DecodedInstruction::Sub {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x7FFF_FFFF);
+        assert_flags(&mut cpu, false, false, false, true, true);
+    }
+
+    #[test]
+    fn subi_uses_sign_extended_bit_pattern() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 1);
+        cpu.execute(DecodedInstruction::Subi {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 0xFFFF_FFFF,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 2);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn cmp_sets_subtraction_flags_without_writing_registers() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0);
+        set(&mut cpu, gpr::R2, 1);
+        set(&mut cpu, gpr::R3, 0xA5A5_A5A5);
+        cpu.execute(DecodedInstruction::Cmp {
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xA5A5_A5A5);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn cmp_equal_sets_zero_and_no_borrow() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x1234_5678);
+        set(&mut cpu, gpr::R2, 0x1234_5678);
+        cpu.execute(DecodedInstruction::Cmp {
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_flags(&mut cpu, false, true, false, true, false);
+    }
+
+    #[test]
+    fn cmpi_uses_sign_extended_bit_pattern() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0);
+        cpu.execute(DecodedInstruction::Cmpi {
+            ra: r(gpr::R1),
+            imm: 0xFFFF_FFFF,
+        });
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    // ---------------------------------------------------------------------
+    // Logical instructions
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn and_sets_zero_when_mask_clears_all_bits() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0xF0F0_0000);
+        set(&mut cpu, gpr::R2, 0x0000_F0F0);
+        cpu.execute(DecodedInstruction::And {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0);
+        assert_flags(&mut cpu, false, true, false, false, false);
+    }
+
+    #[test]
+    fn andi_uses_zero_extended_immediate_operand() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
+        cpu.execute(DecodedInstruction::Andi {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 0x0000_8000,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x0000_8000);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn or_sets_negative_from_result() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x8000_0000);
+        set(&mut cpu, gpr::R2, 0x0000_0001);
+        cpu.execute(DecodedInstruction::Or {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x8000_0001);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn xor_toggles_bits() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0xFFFF_0000);
+        set(&mut cpu, gpr::R2, 0x00FF_00FF);
+        cpu.execute(DecodedInstruction::Xor {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xFF00_00FF);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn not_inverts_all_bits() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0xFFFF_0000);
+        cpu.execute(DecodedInstruction::Not {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x0000_FFFF);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn neg_zero_sets_zero_and_no_borrow() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0);
+        cpu.execute(DecodedInstruction::Neg {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0);
+        assert_flags(&mut cpu, false, true, false, true, false);
+    }
+
+    #[test]
+    fn neg_one_wraps_to_all_ones() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 1);
+        cpu.execute(DecodedInstruction::Neg {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xFFFF_FFFF);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn neg_min_i32_sets_overflow() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x8000_0000);
+        cpu.execute(DecodedInstruction::Neg {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x8000_0000);
+        assert_flags(&mut cpu, false, false, true, false, true);
+    }
+
+    // ---------------------------------------------------------------------
+    // Shifts
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn shl_by_zero_preserves_value_and_clears_carry() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x8000_0000);
+        set(&mut cpu, gpr::R2, 0);
+        cpu.execute(DecodedInstruction::Shl {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x8000_0000);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn shl_sets_carry_from_last_bit_shifted_out() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x8000_0001);
+        cpu.execute(DecodedInstruction::Shli {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 1,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x0000_0002);
+        assert_flags(&mut cpu, false, false, false, true, false);
+    }
+
+    #[test]
+    fn shl_by_31_sets_carry_from_original_bit_1() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x0000_0002);
+        cpu.execute(DecodedInstruction::Shli {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 31,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0);
+        assert_flags(&mut cpu, false, true, false, true, false);
+    }
+
+    #[test]
+    fn shl_invalid_count_sets_ae_and_does_not_write_destination() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 1);
+        set(&mut cpu, gpr::R2, 32);
+        set(&mut cpu, gpr::R3, 0xDEAD_BEEF);
+        cpu.execute(DecodedInstruction::Shl {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xDEAD_BEEF);
+        assert_flags(&mut cpu, true, false, false, false, false);
+    }
+
+    #[test]
+    fn shr_sets_carry_from_last_bit_shifted_out() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 3);
+        cpu.execute(DecodedInstruction::Shri {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 1,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 1);
+        assert_flags(&mut cpu, false, false, false, true, false);
+    }
+
+    #[test]
+    fn shr_by_31_uses_original_bit_30_for_carry() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x4000_0000);
+        cpu.execute(DecodedInstruction::Shri {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 31,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0);
+        assert_flags(&mut cpu, false, true, false, true, false);
+    }
+
+    #[test]
+    fn sar_preserves_sign_bit() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x8000_0000);
+        cpu.execute(DecodedInstruction::Sari {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 1,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xC000_0000);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn sar_sets_carry_from_last_bit_shifted_out() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x8000_0001);
+        cpu.execute(DecodedInstruction::Sari {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 1,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xC000_0000);
+        assert_flags(&mut cpu, false, false, true, true, false);
+    }
+
+    #[test]
+    fn sar_invalid_count_sets_ae_and_does_not_write_destination() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x8000_0000);
+        set(&mut cpu, gpr::R2, 33);
+        set(&mut cpu, gpr::R3, 0xDEAD_BEEF);
+        cpu.execute(DecodedInstruction::Sar {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xDEAD_BEEF);
+        assert_flags(&mut cpu, true, false, false, false, false);
+    }
+
+    // ---------------------------------------------------------------------
+    // Bit immediate instructions
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn btst_set_bit_clears_zero_and_does_not_write_register() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x80);
+        cpu.execute(DecodedInstruction::Btst {
+            ra: r(gpr::R1),
+            imm: 7,
+        });
+        assert_eq!(get(&cpu, gpr::R1), 0x80);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn btst_clear_bit_sets_zero() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0);
+        cpu.execute(DecodedInstruction::Btst {
+            ra: r(gpr::R1),
+            imm: 7,
+        });
+        assert_flags(&mut cpu, false, true, false, false, false);
+    }
+
+    #[test]
+    fn bset_sets_selected_bit_and_updates_result_flags() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0);
+        cpu.execute(DecodedInstruction::Bset {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 31,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x8000_0000);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn bclr_clears_selected_bit() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
+        cpu.execute(DecodedInstruction::Bclr {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 31,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x7FFF_FFFF);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn btgl_toggles_selected_bit() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 1);
+        cpu.execute(DecodedInstruction::Btgl {
+            rd: r(gpr::R3),
+            ra: r(gpr::R1),
+            imm: 0,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0);
+        assert_flags(&mut cpu, false, true, false, false, false);
+    }
+
+    // ---------------------------------------------------------------------
+    // Multiply and divide
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn mul_signed_writes_low_and_high_words() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0xFFFF_FFFE);
+        set(&mut cpu, gpr::R2, 3);
+        cpu.execute(DecodedInstruction::Mul {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xFFFF_FFFA);
+        assert_eq!(get(&cpu, gpr::R4), 0xFFFF_FFFF);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn mul_zero_sets_zero_flag() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0);
+        set(&mut cpu, gpr::R2, 0x1234_5678);
+        cpu.execute(DecodedInstruction::Mul {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0);
+        assert_eq!(get(&cpu, gpr::R4), 0);
+        assert_flags(&mut cpu, false, true, false, false, false);
+    }
+
+    #[test]
+    fn mulu_writes_unsigned_high_word_and_clears_negative() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
+        set(&mut cpu, gpr::R2, 2);
+        cpu.execute(DecodedInstruction::Mulu {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xFFFF_FFFE);
+        assert_eq!(get(&cpu, gpr::R4), 1);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn div_signed_writes_quotient_and_remainder() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 7);
+        set(&mut cpu, gpr::R2, 3);
+        cpu.execute(DecodedInstruction::Div {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 2);
+        assert_eq!(get(&cpu, gpr::R4), 1);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn div_signed_negative_uses_truncating_semantics() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, (-7i32) as u32);
+        set(&mut cpu, gpr::R2, 3);
+        cpu.execute(DecodedInstruction::Div {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), (-2i32) as u32);
+        assert_eq!(get(&cpu, gpr::R4), (-1i32) as u32);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn div_by_zero_sets_ae_and_does_not_write_destinations() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 7);
+        set(&mut cpu, gpr::R2, 0);
+        set(&mut cpu, gpr::R3, 0xAAAA_AAAA);
+        set(&mut cpu, gpr::R4, 0xBBBB_BBBB);
+        cpu.execute(DecodedInstruction::Div {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xAAAA_AAAA);
+        assert_eq!(get(&cpu, gpr::R4), 0xBBBB_BBBB);
+        assert_flags(&mut cpu, true, false, false, false, false);
+    }
+
+    #[test]
+    fn div_min_i32_by_minus_one_sets_ae_and_overflow_without_write() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, i32::MIN as u32);
+        set(&mut cpu, gpr::R2, (-1i32) as u32);
+        set(&mut cpu, gpr::R3, 0xAAAA_AAAA);
+        set(&mut cpu, gpr::R4, 0xBBBB_BBBB);
+        cpu.execute(DecodedInstruction::Div {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xAAAA_AAAA);
+        assert_eq!(get(&cpu, gpr::R4), 0xBBBB_BBBB);
+        assert_flags(&mut cpu, true, false, false, false, true);
+    }
+
+    #[test]
+    fn divu_writes_unsigned_quotient_and_remainder() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 7);
+        set(&mut cpu, gpr::R2, 3);
+        cpu.execute(DecodedInstruction::Divu {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 2);
+        assert_eq!(get(&cpu, gpr::R4), 1);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn divu_clears_negative_even_when_quotient_has_top_bit() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x8000_0000);
+        set(&mut cpu, gpr::R2, 1);
+        cpu.execute(DecodedInstruction::Divu {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x8000_0000);
+        assert_eq!(get(&cpu, gpr::R4), 0);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn divu_by_zero_sets_ae_and_does_not_write_destinations() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 7);
+        set(&mut cpu, gpr::R2, 0);
+        set(&mut cpu, gpr::R3, 0xAAAA_AAAA);
+        set(&mut cpu, gpr::R4, 0xBBBB_BBBB);
+        cpu.execute(DecodedInstruction::Divu {
+            rd0: r(gpr::R3),
+            rd1: r(gpr::R4),
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xAAAA_AAAA);
+        assert_eq!(get(&cpu, gpr::R4), 0xBBBB_BBBB);
+        assert_flags(&mut cpu, true, false, false, false, false);
+    }
+
+    // ---------------------------------------------------------------------
+    // Constant construction
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn lui_writes_high_half_and_sets_negative_from_result() {
+        let mut cpu = cpu();
+        cpu.execute(DecodedInstruction::Lui {
+            rd: r(gpr::R3),
+            imm16: 0x8000,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x8000_0000);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    #[test]
+    fn lui_zero_sets_zero() {
+        let mut cpu = cpu();
+        cpu.execute(DecodedInstruction::Lui {
+            rd: r(gpr::R3),
+            imm16: 0,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0);
+        assert_flags(&mut cpu, false, true, false, false, false);
+    }
+
+    #[test]
+    fn lli_zero_extends_immediate_and_never_sets_negative() {
+        let mut cpu = cpu();
+        cpu.execute(DecodedInstruction::Lli {
+            rd: r(gpr::R3),
+            imm16: 0xFFFF,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0x0000_FFFF);
+        assert_flags(&mut cpu, false, false, false, false, false);
+    }
+
+    #[test]
+    fn lhi_sets_high_half_and_preserves_low_half_when_high_half_was_clear() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R3, 0x0000_5678);
+        cpu.execute(DecodedInstruction::Lhi {
+            rd: r(gpr::R3),
+            imm16: 0xABCD,
+        });
+        assert_eq!(get(&cpu, gpr::R3), 0xABCD_5678);
+        assert_flags(&mut cpu, false, false, true, false, false);
+    }
+
+    // ---------------------------------------------------------------------
+    // Load/store
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn lb_sign_extends_loaded_byte() {
+        let mut cpu = cpu();
+        cpu.bus.write8(0x100, 0x80).unwrap();
+        set(&mut cpu, gpr::R1, 0x100);
+        cpu.execute(DecodedInstruction::Lb {
+            rd: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(get(&cpu, gpr::R2), 0xFFFF_FF80);
+    }
+
+    #[test]
+    fn lbu_zero_extends_loaded_byte() {
+        let mut cpu = cpu();
+        cpu.bus.write8(0x100, 0x80).unwrap();
+        set(&mut cpu, gpr::R1, 0x100);
+        cpu.execute(DecodedInstruction::Lbu {
+            rd: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(get(&cpu, gpr::R2), 0x0000_0080);
+    }
+
+    #[test]
+    fn lh_sign_extends_loaded_halfword() {
+        let mut cpu = cpu();
+        cpu.bus.write16(0x100, 0x8001).unwrap();
+        set(&mut cpu, gpr::R1, 0x100);
+        cpu.execute(DecodedInstruction::Lh {
+            rd: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(get(&cpu, gpr::R2), 0xFFFF_8001);
+    }
+
+    #[test]
+    fn lhu_zero_extends_loaded_halfword() {
+        let mut cpu = cpu();
+        cpu.bus.write16(0x100, 0x8001).unwrap();
+        set(&mut cpu, gpr::R1, 0x100);
+        cpu.execute(DecodedInstruction::Lhu {
+            rd: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(get(&cpu, gpr::R2), 0x0000_8001);
+    }
+
+    #[test]
+    fn lw_reads_full_word() {
+        let mut cpu = cpu();
+        cpu.bus.write32(0x100, 0x1234_5678).unwrap();
+        set(&mut cpu, gpr::R1, 0x100);
+        cpu.execute(DecodedInstruction::Lw {
+            rd: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(get(&cpu, gpr::R2), 0x1234_5678);
+    }
+
+    #[test]
+    fn load_uses_signed_byte_offset() {
+        let mut cpu = cpu();
+        cpu.bus.write32(0x100, 0xCAFE_BABE).unwrap();
+        set(&mut cpu, gpr::R1, 0x104);
+        cpu.execute(DecodedInstruction::Lw {
+            rd: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: -4,
+        });
+        assert_eq!(get(&cpu, gpr::R2), 0xCAFE_BABE);
+    }
+
+    #[test]
+    fn sb_writes_low_byte() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x100);
+        set(&mut cpu, gpr::R2, 0xAABB_CCDD);
+        cpu.execute(DecodedInstruction::Sb {
+            rs: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(cpu.bus.read8(0x100).unwrap(), 0xDD);
+    }
+
+    #[test]
+    fn sh_writes_low_halfword() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x100);
+        set(&mut cpu, gpr::R2, 0xAABB_CCDD);
+        cpu.execute(DecodedInstruction::Sh {
+            rs: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(cpu.bus.read16(0x100).unwrap(), 0xCCDD);
+    }
+
+    #[test]
+    fn sw_writes_full_word() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x100);
+        set(&mut cpu, gpr::R2, 0xAABB_CCDD);
+        cpu.execute(DecodedInstruction::Sw {
+            rs: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(cpu.bus.read32(0x100).unwrap(), 0xAABB_CCDD);
+    }
+
+    #[test]
+    fn misaligned_load_raises_misaligned_data_access_and_does_not_write_rd() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x101);
+        set(&mut cpu, gpr::R2, 0xDEAD_BEEF);
+        cpu.execute(DecodedInstruction::Lh {
+            rd: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(get(&cpu, gpr::R2), 0xDEAD_BEEF);
+        assert_exception(&cpu, ExceptionCause::MisalignedDataAccess, 0x101);
+    }
+
+    #[test]
+    fn unmapped_load_raises_bus_error_and_does_not_write_rd() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0x2000);
+        set(&mut cpu, gpr::R2, 0xDEAD_BEEF);
+        cpu.execute(DecodedInstruction::Lw {
+            rd: r(gpr::R2),
+            base: r(gpr::R1),
+            offset: 0,
+        });
+        assert_eq!(get(&cpu, gpr::R2), 0xDEAD_BEEF);
+        assert_exception(&cpu, ExceptionCause::BusError, 0x2000);
+    }
+
+    // ---------------------------------------------------------------------
+    // Branches and jumps
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn jmp_adds_signed_offset_to_current_pc() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.execute(DecodedInstruction::Jmp { offset: 0x20 });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn jmp_accepts_negative_offset() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.execute(DecodedInstruction::Jmp { offset: -4 });
+        assert_eq!(pc(&cpu), 0x0FC);
+    }
+
+    #[test]
+    fn call_saves_current_pc_to_r15_then_jumps() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.execute(DecodedInstruction::Call { offset: 0x20 });
+        assert_eq!(get(&cpu, gpr::R15), 0x100);
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn jr_loads_pc_from_target_register() {
+        let mut cpu = cpu();
+        set(&mut cpu, gpr::R1, 0xCAFE_BABE);
+        cpu.execute(DecodedInstruction::Jr { target: r(gpr::R1) });
+        assert_eq!(pc(&cpu), 0xCAFE_BABE);
+    }
+
+    #[test]
+    fn jalr_saves_current_pc_and_loads_target_pc() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        set(&mut cpu, gpr::R1, 0xCAFE_BABE);
+        cpu.execute(DecodedInstruction::Jalr {
+            rd: r(gpr::R2),
+            target: r(gpr::R1),
+        });
+        assert_eq!(get(&cpu, gpr::R2), 0x100);
+        assert_eq!(pc(&cpu), 0xCAFE_BABE);
+    }
+
+    #[test]
+    fn bf_eq_branches_when_zero_set() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.creg.update_sr_flags(false, true, false, false, false);
+        cpu.execute(DecodedInstruction::BfEq { offset: 0x20 });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn bf_eq_does_not_branch_when_zero_clear() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.creg.update_sr_flags(false, false, false, false, false);
+        cpu.execute(DecodedInstruction::BfEq { offset: 0x20 });
+        assert_eq!(pc(&cpu), 0x100);
+    }
+
+    #[test]
+    fn bf_lt_uses_negative_xor_overflow() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.creg.update_sr_flags(false, false, true, false, false);
+        cpu.execute(DecodedInstruction::BfLt { offset: 0x20 });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn bf_ge_uses_negative_equals_overflow() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.creg.update_sr_flags(false, false, true, false, true);
+        cpu.execute(DecodedInstruction::BfGe { offset: 0x20 });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn bf_ltu_branches_when_carry_clear() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.creg.update_sr_flags(false, false, false, false, false);
+        cpu.execute(DecodedInstruction::BfLtu { offset: 0x20 });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn bf_geu_branches_when_carry_set() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.creg.update_sr_flags(false, false, false, true, false);
+        cpu.execute(DecodedInstruction::BfGeu { offset: 0x20 });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn bf_es_branches_when_arithmetic_error_set() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.creg.update_sr_flags(true, false, false, false, false);
+        cpu.execute(DecodedInstruction::BfEs { offset: 0x20 });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn bf_ec_branches_when_arithmetic_error_clear() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        cpu.creg.update_sr_flags(false, false, false, false, false);
+        cpu.execute(DecodedInstruction::BfEc { offset: 0x20 });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn register_beq_branches_on_equal_values() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        set(&mut cpu, gpr::R1, 0x1234_5678);
+        set(&mut cpu, gpr::R2, 0x1234_5678);
+        cpu.execute(DecodedInstruction::BEq {
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+            offset: 0x20,
+        });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn register_blt_uses_signed_comparison() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
+        set(&mut cpu, gpr::R2, 0);
+        cpu.execute(DecodedInstruction::BLt {
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+            offset: 0x20,
+        });
+        assert_eq!(pc(&cpu), 0x120);
+    }
+
+    #[test]
+    fn register_bltu_uses_unsigned_comparison() {
+        let mut cpu = cpu();
+        set_pc(&mut cpu, 0x100);
+        set(&mut cpu, gpr::R1, 0);
+        set(&mut cpu, gpr::R2, 0xFFFF_FFFF);
+        cpu.execute(DecodedInstruction::BLtu {
+            ra: r(gpr::R1),
+            rb: r(gpr::R2),
+            offset: 0x20,
+        });
+        assert_eq!(pc(&cpu), 0x120);
     }
 }
