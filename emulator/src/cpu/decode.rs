@@ -8,7 +8,7 @@ pub enum DecodedInstruction {
     // Control/X-type
     Nop,
     Halt,
-    SoftwareTrap { imm: u16 },
+    SoftwareTrap { imm: i32 },
     SystemCall,
     IRet,
     EI,
@@ -23,14 +23,14 @@ pub enum DecodedInstruction {
     And { rd: u8, ra: u8, rb: u8 },
     Or { rd: u8, ra: u8, rb: u8 },
     Xor { rd: u8, ra: u8, rb: u8 },
-    Not { rd: u8, ra: u8, rb: u8 },
-    Neg { rd: u8, ra: u8, rb: u8 },
-    Cmp { rd: u8, ra: u8, rb: u8 },
+    Not { rd: u8, ra: u8 },
+    Neg { rd: u8, ra: u8 },
+    Cmp { ra: u8, rb: u8 },
 
     // Immediate Arithmetic and Compare/I-type
     Addi { rd: u8, ra: u8, sext32: i32 },
     Subi { rd: u8, ra: u8, sext32: i32 },
-    Cmpi { rd: u8, ra: u8, sext32: i32 },
+    Cmpi { ra: u8, sext32: i32 },
 
     // Immediate logical/I-type
     Andi { rd: u8, ra: u8, imm32: u32 },
@@ -48,7 +48,7 @@ pub enum DecodedInstruction {
     Sari { rd: u8, ra: u8, imm: u8 },
 
     // Bit immediate/I-type
-    Btst { rd: u8, ra: u8, imm: u8 },
+    Btst { ra: u8, imm: u8 },
     Bset { rd: u8, ra: u8, imm: u8 },
     Bclr { rd: u8, ra: u8, imm: u8 },
     Btgl { rd: u8, ra: u8, imm: u8 },
@@ -65,14 +65,14 @@ pub enum DecodedInstruction {
     Lhi { rd: u8, imm16: u16 },
 
     // Load/Store/M-type
-    Lb { rd: u8, base: u8, offset: i16 },
-    Lbu { rd: u8, base: u8, offset: i16 },
-    Lh { rd: u8, base: u8, offset: i16 },
-    Lhu { rd: u8, base: u8, offset: i16 },
-    Lw { rd: u8, base: u8, offset: i16 },
-    Sb { rs: u8, base: u8, offset: i16 },
-    Sh { rs: u8, base: u8, offset: i16 },
-    Sw { rs: u8, base: u8, offset: i16 },
+    Lb { rd: u8, base: u8, offset: i32 },
+    Lbu { rd: u8, base: u8, offset: i32 },
+    Lh { rd: u8, base: u8, offset: i32 },
+    Lhu { rd: u8, base: u8, offset: i32 },
+    Lw { rd: u8, base: u8, offset: i32 },
+    Sb { rs: u8, base: u8, offset: i32 },
+    Sh { rs: u8, base: u8, offset: i32 },
+    Sw { rs: u8, base: u8, offset: i32 },
 
     // Flag branch/BF-type
     BfEq { offset: i32 },
@@ -109,7 +109,7 @@ pub enum DecodedInstruction {
     Call { offset: i32 },
 
     // Register jump/call/JR-type
-    Jr { rd: u8, target: u8 },
+    Jr { target: u8 },
     Jalr { rd: u8, target: u8 },
 }
 
@@ -159,9 +159,9 @@ fn decode_r(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
         (opcode::REGISTER_ALU, register_alu::AND) => Ok(DecodedInstruction::And { rd, ra, rb }),
         (opcode::REGISTER_ALU, register_alu::OR) => Ok(DecodedInstruction::Or { rd, ra, rb }),
         (opcode::REGISTER_ALU, register_alu::XOR) => Ok(DecodedInstruction::Xor { rd, ra, rb }),
-        (opcode::REGISTER_ALU, register_alu::NOT) => Ok(DecodedInstruction::Not { rd, ra, rb }),
-        (opcode::REGISTER_ALU, register_alu::NEG) => Ok(DecodedInstruction::Neg { rd, ra, rb }),
-        (opcode::REGISTER_ALU, register_alu::CMP) => Ok(DecodedInstruction::Cmp { rd, ra, rb }),
+        (opcode::REGISTER_ALU, register_alu::NOT) => Ok(DecodedInstruction::Not { rd, ra }),
+        (opcode::REGISTER_ALU, register_alu::NEG) => Ok(DecodedInstruction::Neg { rd, ra }),
+        (opcode::REGISTER_ALU, register_alu::CMP) => Ok(DecodedInstruction::Cmp { ra, rb }),
 
         (opcode::REGISTER_SHIFT, register_shift::SHL) => Ok(DecodedInstruction::Shl { rd, ra, rb }),
         (opcode::REGISTER_SHIFT, register_shift::SHR) => Ok(DecodedInstruction::Shr { rd, ra, rb }),
@@ -192,7 +192,7 @@ fn decode_i(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
             Ok(DecodedInstruction::Subi { rd, ra, sext32 })
         }
         (opcode::IMMEDIATE_ARITHMETIC_COMPARE, immediate_arithmetic_compare::CMPI) => {
-            Ok(DecodedInstruction::Cmpi { rd, ra, sext32 })
+            Ok(DecodedInstruction::Cmpi { ra, sext32 })
         }
 
         (opcode::IMMEDIATE_LOGICAL, immediate_logical::ANDI) => {
@@ -216,7 +216,7 @@ fn decode_i(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
         }
 
         (opcode::BIT_IMMEDIATE, bit_immediate::BTST) => {
-            Ok(DecodedInstruction::Btst { rd, ra, imm: imm16 as u8 })
+            Ok(DecodedInstruction::Btst { ra, imm: imm16 as u8 })
         }
         (opcode::BIT_IMMEDIATE, bit_immediate::BSET) => {
             Ok(DecodedInstruction::Bset { rd, ra, imm: imm16 as u8 })
@@ -273,8 +273,8 @@ fn decode_m(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
 
     let sx = (raw & m::SX_MASK) >> m::SX_SHIFT;
     let size = (raw & m::SIZE_MASK) >> m::SIZE_SHIFT;
-    let mut offset = ((raw & m::OFFSET15_MASK) >> m::OFFSET15_SHIFT) as i16;
-    let ss = 16 - m::OFFSET15_WIDTH;
+    let mut offset = ((raw & m::OFFSET15_MASK) >> m::OFFSET15_SHIFT) as i32;
+    let ss = 32 - m::OFFSET15_WIDTH;
     offset = (offset << ss) >> ss;
     let r = ((raw & m::RD_RS_MASK) >> m::RD_RS_SHIFT) as u8;
     let base = ((raw & m::BASE_MASK) >> m::BASE_SHIFT) as u8;
@@ -300,7 +300,7 @@ fn decode_bf(raw: u32) -> Result<DecodedInstruction, DecodeError> {
     let cond = (raw & bf::COND_MASK) >> bf::COND_SHIFT;
     let mut offset = ((raw & bf::OFFSET22_MASK) >> bf::OFFSET22_SHIFT) as i32;
     let ss = 32 - bf::OFFSET22_WIDTH;
-    offset = (offset << ss) >> ss;
+    offset = (offset << ss) >> (ss - 2); // All branch offsets are SHL2.
 
     match cond {
         condition::EQ => Ok(DecodedInstruction::BfEq { offset }),
@@ -330,7 +330,7 @@ fn decode_bc(raw: u32) -> Result<DecodedInstruction, DecodeError> {
     let cond = (raw & bc::COND_MASK) >> bc::COND_SHIFT;
     let mut offset = ((raw & bc::OFFSET14_MASK) >> bc::OFFSET14_SHIFT) as i32;
     let ss = 32 - bc::OFFSET14_WIDTH;
-    offset = (offset << ss) >> ss;
+    offset = (offset << ss) >> (ss - 2); // All branch offsets are SHL2.
     let ra = ((raw & bc::RA_MASK) >> bc::RA_SHIFT) as u8;
     let rb = ((raw & bc::RB_MASK) >> bc::RB_SHIFT) as u8;
 
@@ -355,7 +355,7 @@ fn decode_j(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
 
     let mut offset = ((raw & j::OFFSET26_MASK) >> j::OFFSET26_SHIFT) as i32;
     let shift = 32 - j::OFFSET26_WIDTH;
-    offset = (offset << shift) >> shift;
+    offset = (offset << shift) >> (shift - 2); // All branch offsets are SHL2.
 
     match opcode {
         opcode::PC_RELATIVE_JUMP => Ok(DecodedInstruction::Jmp { offset }),
@@ -373,7 +373,7 @@ fn decode_jr(raw: u32) -> Result<DecodedInstruction, DecodeError> {
     let target = ((raw & jr::TARGET_MASK) >> jr::TARGET_SHIFT) as u8;
 
     match func {
-        register_jump_call::JR => Ok(DecodedInstruction::Jr { rd, target }),
+        register_jump_call::JR => Ok(DecodedInstruction::Jr { target }),
         register_jump_call::JALR => Ok(DecodedInstruction::Jalr { rd, target }),
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
@@ -391,9 +391,11 @@ fn decode_x(raw: u32) -> Result<DecodedInstruction, DecodeError> {
     match sysop {
         sysop::NOP => Ok(DecodedInstruction::Nop),
         sysop::HALT => Ok(DecodedInstruction::Halt),
-        sysop::TRAP => Ok(DecodedInstruction::SoftwareTrap {
-            imm: payload as u16,
-        }),
+        sysop::TRAP => {
+            let ss = 32 - x::PAYLOAD_WIDTH;
+            let offset = ((payload as i32) << ss) >> (ss - 2); // Branch offsets are SHL2.
+            Ok(DecodedInstruction::SoftwareTrap { imm: offset })
+        }
         sysop::SYSCALL => Ok(DecodedInstruction::SystemCall),
         sysop::IRET => Ok(DecodedInstruction::IRet),
         sysop::EI => Ok(DecodedInstruction::EI),
@@ -419,8 +421,9 @@ fn decode_creg(payload: u32) -> Result<Creg, DecodeError> {
         creg::PC => Ok(Creg::PC),
         creg::SR => Ok(Creg::SR),
         creg::EPC => Ok(Creg::EPC),
+        creg::ESR => Ok(Creg::ESR),
         creg::ECAUSE => Ok(Creg::ECause),
-        creg::EADDR => Ok(Creg::EAddr),
+        creg::EDATA => Ok(Creg::EData),
         creg::EVBASE => Ok(Creg::EvBase),
 
         _ => Err(DecodeError::IllegalPayload(payload)),
@@ -581,7 +584,7 @@ mod tests {
     decode_case!(
         decodes_software_trap,
         enc_x(generated::sysop::TRAP, 0x7A9, 0, 0),
-        DecodedInstruction::SoftwareTrap { imm: 0x7A9 }
+        DecodedInstruction::SoftwareTrap { imm: 0x1EA4 }
     );
 
     decode_case!(
@@ -705,11 +708,7 @@ mod tests {
             generated::opcode::REGISTER_ALU,
             generated::func::register_alu::NOT
         ),
-        DecodedInstruction::Not {
-            rd: 3,
-            ra: 4,
-            rb: 5
-        }
+        DecodedInstruction::Not { rd: 3, ra: 4 }
     );
 
     decode_case!(
@@ -718,11 +717,7 @@ mod tests {
             generated::opcode::REGISTER_ALU,
             generated::func::register_alu::NEG
         ),
-        DecodedInstruction::Neg {
-            rd: 3,
-            ra: 4,
-            rb: 5
-        }
+        DecodedInstruction::Neg { rd: 3, ra: 4 }
     );
 
     decode_case!(
@@ -731,11 +726,7 @@ mod tests {
             generated::opcode::REGISTER_ALU,
             generated::func::register_alu::CMP
         ),
-        DecodedInstruction::Cmp {
-            rd: 3,
-            ra: 4,
-            rb: 5
-        }
+        DecodedInstruction::Cmp { ra: 4, rb: 5 }
     );
 
     // ---------------------------------------------------------------------
@@ -834,11 +825,7 @@ mod tests {
             generated::mode::immediate_arithmetic_compare::CMPI,
             0xFFFF,
         ),
-        DecodedInstruction::Cmpi {
-            rd: 3,
-            ra: 4,
-            sext32: -1
-        }
+        DecodedInstruction::Cmpi { ra: 4, sext32: -1 }
     );
 
     // ---------------------------------------------------------------------
@@ -944,11 +931,7 @@ mod tests {
             generated::mode::bit_immediate::BTST,
             1
         ),
-        DecodedInstruction::Btst {
-            rd: 3,
-            ra: 4,
-            imm: 1
-        }
+        DecodedInstruction::Btst { ra: 4, imm: 1 }
     );
 
     decode_case!(
@@ -1188,82 +1171,82 @@ mod tests {
     decode_case!(
         decodes_bf_eq_positive,
         enc_bf(generated::condition::EQ, 4),
-        DecodedInstruction::BfEq { offset: 4 }
+        DecodedInstruction::BfEq { offset: 16 }
     );
     decode_case!(
         decodes_bf_ne_negative,
         enc_bf(generated::condition::NE, -4),
-        DecodedInstruction::BfNe { offset: -4 }
+        DecodedInstruction::BfNe { offset: -16 }
     );
     decode_case!(
         decodes_bf_lt_negative,
         enc_bf(generated::condition::LT, -8),
-        DecodedInstruction::BfLt { offset: -8 }
+        DecodedInstruction::BfLt { offset: -32 }
     );
     decode_case!(
         decodes_bf_le_negative,
         enc_bf(generated::condition::LE, -12),
-        DecodedInstruction::BfLe { offset: -12 }
+        DecodedInstruction::BfLe { offset: -48 }
     );
     decode_case!(
         decodes_bf_gt_positive,
         enc_bf(generated::condition::GT, 16),
-        DecodedInstruction::BfGt { offset: 16 }
+        DecodedInstruction::BfGt { offset: 64 }
     );
     decode_case!(
         decodes_bf_ge_positive,
         enc_bf(generated::condition::GE, 20),
-        DecodedInstruction::BfGe { offset: 20 }
+        DecodedInstruction::BfGe { offset: 80 }
     );
     decode_case!(
         decodes_bf_ltu_negative,
         enc_bf(generated::condition::LTU, -16),
-        DecodedInstruction::BfLtu { offset: -16 }
+        DecodedInstruction::BfLtu { offset: -64 }
     );
     decode_case!(
         decodes_bf_leu_negative,
         enc_bf(generated::condition::LEU, -20),
-        DecodedInstruction::BfLeu { offset: -20 }
+        DecodedInstruction::BfLeu { offset: -80 }
     );
     decode_case!(
         decodes_bf_gtu_positive,
         enc_bf(generated::condition::GTU, 24),
-        DecodedInstruction::BfGtu { offset: 24 }
+        DecodedInstruction::BfGtu { offset: 96 }
     );
     decode_case!(
         decodes_bf_geu_positive,
         enc_bf(generated::condition::GEU, 28),
-        DecodedInstruction::BfGeu { offset: 28 }
+        DecodedInstruction::BfGeu { offset: 112 }
     );
     decode_case!(
         decodes_bf_cs_negative,
         enc_bf(generated::condition::CS, -24),
-        DecodedInstruction::BfCs { offset: -24 }
+        DecodedInstruction::BfCs { offset: -96 }
     );
     decode_case!(
         decodes_bf_cc_negative,
         enc_bf(generated::condition::CC, -28),
-        DecodedInstruction::BfCc { offset: -28 }
+        DecodedInstruction::BfCc { offset: -112 }
     );
     decode_case!(
         decodes_bf_vs_positive,
         enc_bf(generated::condition::VS, 32),
-        DecodedInstruction::BfVs { offset: 32 }
+        DecodedInstruction::BfVs { offset: 128 }
     );
     decode_case!(
         decodes_bf_vc_positive,
         enc_bf(generated::condition::VC, 36),
-        DecodedInstruction::BfVc { offset: 36 }
+        DecodedInstruction::BfVc { offset: 144 }
     );
     decode_case!(
         decodes_bf_es_negative,
         enc_bf(generated::condition::ES, -32),
-        DecodedInstruction::BfEs { offset: -32 }
+        DecodedInstruction::BfEs { offset: -128 }
     );
     decode_case!(
         decodes_bf_ec_negative,
         enc_bf(generated::condition::EC, -36),
-        DecodedInstruction::BfEc { offset: -36 }
+        DecodedInstruction::BfEc { offset: -144 }
     );
 
     // ---------------------------------------------------------------------
@@ -1276,7 +1259,7 @@ mod tests {
         DecodedInstruction::BEq {
             ra: 3,
             rb: 4,
-            offset: 4
+            offset: 16
         }
     );
 
@@ -1286,7 +1269,7 @@ mod tests {
         DecodedInstruction::BNe {
             ra: 3,
             rb: 4,
-            offset: -4
+            offset: -16
         }
     );
 
@@ -1296,7 +1279,7 @@ mod tests {
         DecodedInstruction::BLt {
             ra: 3,
             rb: 4,
-            offset: -8
+            offset: -32
         }
     );
 
@@ -1306,7 +1289,7 @@ mod tests {
         DecodedInstruction::BLe {
             ra: 3,
             rb: 4,
-            offset: -12
+            offset: -48
         }
     );
 
@@ -1316,7 +1299,7 @@ mod tests {
         DecodedInstruction::BGt {
             ra: 3,
             rb: 4,
-            offset: 16
+            offset: 64
         }
     );
 
@@ -1326,7 +1309,7 @@ mod tests {
         DecodedInstruction::BGe {
             ra: 3,
             rb: 4,
-            offset: 20
+            offset: 80
         }
     );
 
@@ -1336,7 +1319,7 @@ mod tests {
         DecodedInstruction::BLtu {
             ra: 3,
             rb: 4,
-            offset: -16
+            offset: -64
         }
     );
 
@@ -1346,7 +1329,7 @@ mod tests {
         DecodedInstruction::BLeu {
             ra: 3,
             rb: 4,
-            offset: -20
+            offset: -80
         }
     );
 
@@ -1356,7 +1339,7 @@ mod tests {
         DecodedInstruction::BGtu {
             ra: 3,
             rb: 4,
-            offset: 24
+            offset: 96
         }
     );
 
@@ -1366,7 +1349,7 @@ mod tests {
         DecodedInstruction::BGeu {
             ra: 3,
             rb: 4,
-            offset: 28
+            offset: 112
         }
     );
 
@@ -1377,25 +1360,25 @@ mod tests {
     decode_case!(
         decodes_jmp_positive,
         enc_j(generated::opcode::PC_RELATIVE_JUMP, 1024),
-        DecodedInstruction::Jmp { offset: 1024 }
+        DecodedInstruction::Jmp { offset: 4096 }
     );
 
     decode_case!(
         decodes_jmp_negative,
         enc_j(generated::opcode::PC_RELATIVE_JUMP, -1024),
-        DecodedInstruction::Jmp { offset: -1024 }
+        DecodedInstruction::Jmp { offset: -4096 }
     );
 
     decode_case!(
         decodes_call_positive,
         enc_j(generated::opcode::PC_RELATIVE_CALL, 2048),
-        DecodedInstruction::Call { offset: 2048 }
+        DecodedInstruction::Call { offset: 8192 }
     );
 
     decode_case!(
         decodes_call_negative,
         enc_j(generated::opcode::PC_RELATIVE_CALL, -2048),
-        DecodedInstruction::Call { offset: -2048 }
+        DecodedInstruction::Call { offset: -8192 }
     );
 
     // ---------------------------------------------------------------------
@@ -1405,7 +1388,7 @@ mod tests {
     decode_case!(
         decodes_jr,
         enc_jr(generated::func::register_jump_call::JR),
-        DecodedInstruction::Jr { rd: 3, target: 4 }
+        DecodedInstruction::Jr { target: 4 }
     );
 
     decode_case!(

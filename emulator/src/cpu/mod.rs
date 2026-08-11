@@ -17,7 +17,7 @@ mod pc;
 mod status;
 
 pub use cpu::Cpu;
-pub use creg_file::CregFile;
+pub use creg_file::{Creg, CregFile};
 pub use decode::{DecodeError, DecodedInstruction, decode};
 use exception_cause::ExceptionCause;
 pub use gpr::GprFile;

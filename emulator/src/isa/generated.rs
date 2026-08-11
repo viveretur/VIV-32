@@ -57,12 +57,14 @@ pub mod creg {
     pub const SR: usize = 0x1;
     /// Exception program counter
     pub const EPC: usize = 0x2;
+    /// Shadow status register
+    pub const ESR: usize = 0x3;
     /// Exception cause
-    pub const ECAUSE: usize = 0x3;
-    /// Exception address
-    pub const EADDR: usize = 0x4;
+    pub const ECAUSE: usize = 0x4;
+    /// Exception data
+    pub const EDATA: usize = 0x5;
     /// Exception vector base address
-    pub const EVBASE: usize = 0x5;
+    pub const EVBASE: usize = 0x6;
 }
 
 pub mod sr {

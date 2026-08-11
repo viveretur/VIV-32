@@ -7,8 +7,9 @@ pub enum Creg {
     PC,
     SR,
     EPC,
+    ESR,
     ECause,
-    EAddr,
+    EData,
     EvBase,
 }
 
@@ -17,8 +18,9 @@ pub struct CregFile {
     pc: ProgramCounter,
     sr: StatusRegister,
     epc: u32,
+    esr: StatusRegister,
     ecause: u32,
-    eaddr: u32,
+    edata: u32,
     evbase: u32,
 }
 
@@ -28,30 +30,30 @@ impl CregFile {
             pc: ProgramCounter::new(),
             sr: StatusRegister::new(),
             epc: 0,
+            esr: StatusRegister::new(),
             ecause: ExceptionCause::Reset as u32,
-            eaddr: 0,
+            edata: 0,
             evbase: 0,
         }
     }
 
-    pub fn pc(&self) -> u32 {
-        self.pc.get()
+    pub(crate) fn sr(&mut self) -> &mut StatusRegister {
+        &mut self.sr
     }
 
-    pub fn sr(&self) -> u32 {
-        self.sr.get()
-    }
-
-    pub fn epc(&self) -> u32 {
-        self.epc
-    }
-
-    pub fn eaddr(&self) -> u32 {
-        self.eaddr
-    }
-
-    pub fn evbase(&self) -> u32 {
-        self.evbase
+    pub(crate) fn update_sr_flags(
+        &mut self,
+        arithmetic_error: bool,
+        zero: bool,
+        negative: bool,
+        carry: bool,
+        overflow: bool,
+    ) {
+        self.sr.set_arithmetic_error(arithmetic_error);
+        self.sr.set_zero(zero);
+        self.sr.set_negative(negative);
+        self.sr.set_carry(carry);
+        self.sr.set_overflow(overflow);
     }
 
     pub(crate) fn reset(&mut self) {
@@ -67,14 +69,6 @@ impl CregFile {
         self.pc.advance_word();
     }
 
-    pub(crate) fn set_pc(&mut self, value: u32) {
-        self.pc.set(value);
-    }
-
-    pub(crate) fn set_sr(&mut self, value: u32) {
-        self.sr.set(value);
-    }
-
     pub(crate) fn ei(&mut self) {
         self.sr.set_interrupt_enable(true);
     }
@@ -83,24 +77,22 @@ impl CregFile {
         self.sr.set_interrupt_enable(false);
     }
 
-    pub(crate) fn raise_exception(&mut self, cause: ExceptionCause, fault_addr: u32) {
+    pub(crate) fn raise_exception(&mut self, cause: ExceptionCause, data: u32) {
         // EPC is the continuation PC, not necessarily the faulting instruction PC.
         // The fetch/decode/execute pipeline advances PC before execute, so exception
         // entry records the address that IRET should resume at.
+        self.esr.set(self.sr.get());
         self.sr.set_interrupt_enable(false);
         self.epc = self.pc.get();
         self.ecause = cause as u32;
-        self.eaddr = fault_addr;
+        self.edata = data;
         self.pc.set(self.evbase + cause.vector_offset());
     }
 
     pub(crate) fn iret(&mut self) {
         self.pc.set(self.epc);
-        self.sr.set_interrupt_enable(true);
-    }
-
-    pub(crate) fn set_eaddr(&mut self, value: u32) {
-        self.eaddr = value;
+        self.sr.set(self.esr.get());
+        // IE gets restored with the write to SR from ESR.
     }
 
     pub(crate) fn read_register(&self, reg: Creg) -> u32 {
@@ -108,8 +100,9 @@ impl CregFile {
             Creg::PC => self.pc.get(),
             Creg::SR => self.sr.get(),
             Creg::EPC => self.epc,
+            Creg::ESR => self.esr.get(),
             Creg::ECause => self.ecause,
-            Creg::EAddr => self.eaddr,
+            Creg::EData => self.edata,
             Creg::EvBase => self.evbase,
         }
     }
@@ -125,11 +118,14 @@ impl CregFile {
             Creg::EPC => {
                 self.epc = value;
             }
+            Creg::ESR => {
+                self.esr.set(value);
+            }
             Creg::ECause => {
                 self.ecause = value;
             }
-            Creg::EAddr => {
-                self.eaddr = value;
+            Creg::EData => {
+                self.edata = value;
             }
             Creg::EvBase => {
                 self.evbase = value;

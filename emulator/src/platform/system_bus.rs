@@ -58,7 +58,7 @@ impl SystemBus {
         addr.wrapping_sub(base)
     }
 
-    fn read8(&mut self, addr: u32) -> Result<u8, SystemBusError> {
+    pub fn read8(&mut self, addr: u32) -> Result<u8, SystemBusError> {
         if let Some(value) = self.ram.read8(Self::device_offset(addr, RAM_BASE)) {
             return Ok(value);
         }
@@ -78,7 +78,7 @@ impl SystemBus {
         Err(SystemBusError::AddressUnmapped { addr })
     }
 
-    fn write8(&mut self, addr: u32, value: u8) -> Result<(), SystemBusError> {
+    pub fn write8(&mut self, addr: u32, value: u8) -> Result<(), SystemBusError> {
         if self
             .ram
             .write8(Self::device_offset(addr, RAM_BASE), value)

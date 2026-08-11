@@ -48,17 +48,20 @@ control_registers:
   epc:
     number: 0x2
     description: Exception program counter
-  ecause:
+  esr:
     number: 0x3
-    description: Exception cause
-  eaddr:
+    description: Shadow status register
+  ecause:
     number: 0x4
-    description: Exception address
-  evbase:
+    description: Exception cause
+  edata:
     number: 0x5
+    description: Exception data
+  evbase:
+    number: 0x6
     description: Exception vector base address
   reserved:
-    range: [0x6, 0xF]
+    range: [0x7, 0xF]
 
 status_register:
   bits:

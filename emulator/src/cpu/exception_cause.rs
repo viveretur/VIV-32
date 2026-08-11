@@ -8,11 +8,12 @@ pub enum ExceptionCause {
     SystemCall = 0x05,
     TimerInterrupt = 0x06,
     ExternalInterrupt = 0x07,
+    BusError = 0x08,
 }
 
 impl ExceptionCause {
     pub const SLOT_SIZE: u32 = 16;
-    pub const TABLE_SIZE: u32 = 8 * Self::SLOT_SIZE;
+    pub const TABLE_SIZE: u32 = 9 * Self::SLOT_SIZE;
 
     pub fn code(self) -> u32 {
         self as u32
@@ -36,8 +37,8 @@ impl TryFrom<u32> for ExceptionCause {
             5 => Ok(Self::SystemCall),
             6 => Ok(Self::TimerInterrupt),
             7 => Ok(Self::ExternalInterrupt),
+            8 => Ok(Self::BusError),
             _ => Err(()),
         }
     }
 }
-
