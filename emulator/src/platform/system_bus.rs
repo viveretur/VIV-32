@@ -27,6 +27,12 @@ pub struct SystemBus {
     timer: Timer,
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum PendingInterrupt {
+    Timer,
+    External { source: u32 },
+}
+
 impl SystemBus {
     pub fn new(ram_size: u32) -> Self {
         Self {
@@ -152,6 +158,19 @@ impl SystemBus {
         self.write8(addr.wrapping_add(3), value as u8)?;
 
         Ok(())
+    }
+
+    pub fn pending_interrupt(&self) -> Option<PendingInterrupt> {
+        if self.timer.interrupt_asserted() {
+            return Some(PendingInterrupt::Timer);
+        }
+
+        // Later:
+        // if self.serial.interrupt_asserted() {
+        //     return Some(PendingInterrupt::External { source: SERIAL_IRQ });
+        // }
+
+        None
     }
 }
 

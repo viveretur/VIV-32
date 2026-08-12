@@ -7,12 +7,15 @@ pub struct Timer {
     counter: u32,
     prescale_counter: u32,
     control: u32,
+    compare: u32,
 }
 
 const COUNTER_OFFSET: u32 = 0x00;
 const COUNTER_END_OFFSET: u32 = COUNTER_OFFSET + 3;
 const CONTROL_OFFSET: u32 = 0x04;
 const CONTROL_END_OFFSET: u32 = CONTROL_OFFSET + 3;
+const COMPARE_OFFSET: u32 = 0x08;
+const COMPARE_END_OFFSET: u32 = COMPARE_OFFSET + 3;
 
 const CONTROL_ENABLE: u32 = 1 << 0;
 const CONTROL_IRQ_ENABLE: u32 = 1 << 1;
@@ -38,26 +41,19 @@ impl Timer {
             counter: 0,
             prescale_counter: 0,
             control: 0,
+            compare: 0xFFFF_FFFF,
         }
     }
 
-    fn counter(&self) -> u32 {
-        self.counter
-    }
-
-    fn control(&self) -> u32 {
-        self.control
-    }
-
     fn enabled(&self) -> bool {
-        self.control & CONTROL_ENABLE != 0
+        self.compare != 0 && self.control & CONTROL_ENABLE != 0
     }
 
     fn interrupt_pending(&self) -> bool {
         self.control & CONTROL_IRQ_PENDING != 0
     }
 
-    fn interrupt_asserted(&self) -> bool {
+    pub fn interrupt_asserted(&self) -> bool {
         self.control & CONTROL_IRQ_ENABLE != 0 && self.interrupt_pending()
     }
 
@@ -87,20 +83,20 @@ impl Timer {
         }
     }
 
+    fn read_compare(&self) -> u32 {
+        self.compare
+    }
+
+    fn write_compare(&mut self, value: u32) {
+        self.compare = value;
+    }
+
     fn prescaler_select(&self) -> u32 {
         (self.control & CONTROL_PRESCALER_MASK) >> CONTROL_PRESCALER_SHIFT
     }
 
-    fn period_select(&self) -> u32 {
-        (self.control & CONTROL_PERIOD_MASK) >> CONTROL_PERIOD_SHIFT
-    }
-
     fn prescaler_divider(&self) -> u32 {
         1 << self.prescaler_select()
-    }
-
-    fn period_limit(&self) -> u32 {
-        1 << (8 + self.period_select())
     }
 }
 
@@ -115,12 +111,13 @@ impl Reset for Timer {
         self.counter = 0;
         self.prescale_counter = 0;
         self.control = 0;
+        self.compare = 0xFFFF_FFFF;
     }
 }
 
 impl Tick for Timer {
     fn tick(&mut self) {
-        if self.control & CONTROL_ENABLE == 0 {
+        if !self.enabled() {
             return;
         }
 
@@ -133,7 +130,7 @@ impl Tick for Timer {
         self.prescale_counter = 0;
         self.counter = self.counter.wrapping_add(1);
 
-        if self.counter >= self.period_limit() {
+        if self.counter >= self.read_compare() {
             self.control |= CONTROL_IRQ_PENDING;
 
             if self.control & CONTROL_AUTO_RELOAD != 0 {
@@ -155,15 +152,21 @@ impl MemoryMapping for Timer {
     fn read8(&mut self, offset: u32) -> Option<u8> {
         match offset {
             COUNTER_OFFSET..=COUNTER_END_OFFSET => {
-                let counter = self.counter();
+                let counter = self.read_counter();
                 let shift = (3 - (offset - COUNTER_OFFSET)) * 8;
                 Some((counter >> shift) as u8)
             }
 
             CONTROL_OFFSET..=CONTROL_END_OFFSET => {
-                let control = self.control();
+                let control = self.read_control();
                 let shift = (3 - (offset - CONTROL_OFFSET)) * 8;
                 Some((control >> shift) as u8)
+            }
+
+            COMPARE_OFFSET..=COMPARE_END_OFFSET => {
+                let compare = self.read_compare();
+                let shift = (3 - (offset - COMPARE_OFFSET)) * 8;
+                Some((compare >> shift) as u8)
             }
 
             _ => None,
@@ -176,7 +179,7 @@ impl MemoryMapping for Timer {
                 let shift = (3 - (offset - COUNTER_OFFSET)) * 8;
                 let mask = !(0xFFu32 << shift);
 
-                let new_counter = (self.counter() & mask) | ((value as u32) << shift);
+                let new_counter = (self.read_counter() & mask) | ((value as u32) << shift);
 
                 self.write_counter(new_counter);
                 Some(())
@@ -186,9 +189,19 @@ impl MemoryMapping for Timer {
                 let shift = (3 - (offset - CONTROL_OFFSET)) * 8;
                 let mask = !(0xFFu32 << shift);
 
-                let new_control = (self.control() & mask) | ((value as u32) << shift);
+                let new_control = (self.read_control() & mask) | ((value as u32) << shift);
 
                 self.write_control(new_control);
+                Some(())
+            }
+
+            COMPARE_OFFSET..=COMPARE_END_OFFSET => {
+                let shift = (3 - (offset - COMPARE_OFFSET)) * 8;
+                let mask = !(0xFFu32 << shift);
+
+                let new_compare = (self.read_compare() & mask) | ((value as u32) << shift);
+
+                self.write_compare(new_compare);
                 Some(())
             }
 
@@ -205,8 +218,8 @@ mod tests {
     fn new_timer_starts_clear_and_disabled() {
         let timer = Timer::new();
 
-        assert_eq!(timer.counter(), 0);
-        assert_eq!(timer.control(), 0);
+        assert_eq!(timer.read_counter(), 0);
+        assert_eq!(timer.read_control(), 0);
         assert!(!timer.enabled());
         assert!(!timer.interrupt_pending());
         assert!(!timer.interrupt_asserted());
@@ -218,7 +231,7 @@ mod tests {
 
         timer.tick();
 
-        assert_eq!(timer.counter(), 0);
+        assert_eq!(timer.read_counter(), 0);
     }
 
     #[test]
@@ -229,7 +242,7 @@ mod tests {
         timer.tick();
         timer.tick();
 
-        assert_eq!(timer.counter(), 2);
+        assert_eq!(timer.read_counter(), 2);
     }
 
     #[test]
@@ -242,8 +255,8 @@ mod tests {
 
         timer.reset();
 
-        assert_eq!(timer.counter(), 0);
-        assert_eq!(timer.control(), 0);
+        assert_eq!(timer.read_counter(), 0);
+        assert_eq!(timer.read_control(), 0);
         assert!(!timer.enabled());
     }
 
@@ -257,8 +270,8 @@ mod tests {
 
         timer.init();
 
-        assert_eq!(timer.counter(), 0);
-        assert_eq!(timer.control(), 0);
+        assert_eq!(timer.read_counter(), 0);
+        assert_eq!(timer.read_control(), 0);
         assert!(!timer.enabled());
     }
 
@@ -274,11 +287,11 @@ mod tests {
         timer.tick();
         timer.tick();
 
-        assert_eq!(timer.counter(), 0);
+        assert_eq!(timer.read_counter(), 0);
 
         timer.tick();
 
-        assert_eq!(timer.counter(), 1);
+        assert_eq!(timer.read_counter(), 1);
     }
 
     #[test]
@@ -286,11 +299,12 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
+        timer.write_compare(256);
         timer.write_control(CONTROL_ENABLE);
 
         timer.tick();
 
-        assert_eq!(timer.counter(), 256);
+        assert_eq!(timer.read_counter(), 256);
         assert!(timer.interrupt_pending());
         assert!(!timer.interrupt_asserted());
     }
@@ -300,6 +314,7 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
+        timer.write_compare(256);
         timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
 
         timer.tick();
@@ -313,11 +328,12 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
+        timer.write_compare(256);
         timer.write_control(CONTROL_ENABLE);
 
         timer.tick();
 
-        assert_eq!(timer.control() & CONTROL_ENABLE, 0);
+        assert_eq!(timer.read_control() & CONTROL_ENABLE, 0);
     }
 
     #[test]
@@ -325,12 +341,13 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
+        timer.write_compare(256);
         timer.write_control(CONTROL_ENABLE | CONTROL_AUTO_RELOAD);
 
         timer.tick();
 
-        assert_eq!(timer.counter(), 0);
-        assert_ne!(timer.control() & CONTROL_ENABLE, 0);
+        assert_eq!(timer.read_counter(), 0);
+        assert_ne!(timer.read_control() & CONTROL_ENABLE, 0);
         assert!(timer.interrupt_pending());
     }
 
@@ -339,6 +356,7 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
+        timer.write_compare(256);
         timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
         timer.tick();
 
@@ -355,6 +373,7 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
+        timer.write_compare(256);
         timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
         timer.tick();
 
@@ -379,7 +398,7 @@ mod tests {
         timer.write_counter(10);
         timer.tick();
 
-        assert_eq!(timer.counter(), 10);
+        assert_eq!(timer.read_counter(), 10);
     }
 
     #[test]
@@ -403,7 +422,7 @@ mod tests {
         assert_eq!(timer.write8(COUNTER_OFFSET + 2, 0x56), Some(()));
         assert_eq!(timer.write8(COUNTER_OFFSET + 3, 0x78), Some(()));
 
-        assert_eq!(timer.counter(), 0x1234_5678);
+        assert_eq!(timer.read_counter(), 0x1234_5678);
     }
 
     #[test]
@@ -426,6 +445,7 @@ mod tests {
         let mut timer = Timer::new();
 
         timer.write_counter(255);
+        timer.write_compare(256);
         timer.write_control(CONTROL_ENABLE | CONTROL_IRQ_ENABLE);
         timer.tick();
 
@@ -443,7 +463,7 @@ mod tests {
     fn timer_unknown_offsets_return_none() {
         let mut timer = Timer::new();
 
-        assert_eq!(timer.read8(0x08), None);
-        assert_eq!(timer.write8(0x08, 0xFF), None);
+        assert_eq!(timer.read8(0x0C), None);
+        assert_eq!(timer.write8(0x0C, 0xFF), None);
     }
 }

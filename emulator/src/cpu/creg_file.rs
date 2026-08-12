@@ -37,7 +37,11 @@ impl CregFile {
         }
     }
 
-    pub(crate) fn sr(&mut self) -> &mut StatusRegister {
+    pub(crate) fn sr(&self) -> &StatusRegister {
+        &self.sr
+    }
+
+    pub(crate) fn sr_mut(&mut self) -> &mut StatusRegister {
         &mut self.sr
     }
 

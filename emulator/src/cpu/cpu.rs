@@ -58,6 +58,27 @@ impl Cpu {
         self.state == CpuState::Halted
     }
 
+    fn check_interrupts(&mut self) {
+        use crate::platform::PendingInterrupt;
+
+        if !self.creg.sr().interrupt_enable() {
+            return;
+        }
+
+        match self.bus.pending_interrupt() {
+            Some(PendingInterrupt::Timer) => {
+                self.creg.raise_exception(ExceptionCause::TimerInterrupt, 0);
+            }
+
+            Some(PendingInterrupt::External { source }) => {
+                self.creg
+                    .raise_exception(ExceptionCause::ExternalInterrupt, source);
+            }
+
+            None => {}
+        }
+    }
+
     fn tick_with_bus(&mut self) {
         if self.is_halted() {
             return;
@@ -173,37 +194,37 @@ impl Cpu {
             DecodedInstruction::Sw { rs, base, offset } => self.execute_sw(rs, base, offset),
 
             // Branch on Flag
-            DecodedInstruction::BfEq { offset } => self.execute_bf_eq(offset),
-            DecodedInstruction::BfNe { offset } => self.execute_bf_ne(offset),
-            DecodedInstruction::BfLt { offset } => self.execute_bf_lt(offset),
-            DecodedInstruction::BfLe { offset } => self.execute_bf_le(offset),
-            DecodedInstruction::BfGt { offset } => self.execute_bf_gt(offset),
-            DecodedInstruction::BfGe { offset } => self.execute_bf_ge(offset),
-            DecodedInstruction::BfLtu { offset } => self.execute_bf_ltu(offset),
-            DecodedInstruction::BfLeu { offset } => self.execute_bf_leu(offset),
-            DecodedInstruction::BfGtu { offset } => self.execute_bf_gtu(offset),
-            DecodedInstruction::BfGeu { offset } => self.execute_bf_geu(offset),
-            DecodedInstruction::BfCs { offset } => self.execute_bf_cs(offset),
-            DecodedInstruction::BfCc { offset } => self.execute_bf_cc(offset),
-            DecodedInstruction::BfVs { offset } => self.execute_bf_vs(offset),
-            DecodedInstruction::BfVc { offset } => self.execute_bf_vc(offset),
-            DecodedInstruction::BfEs { offset } => self.execute_bf_es(offset),
-            DecodedInstruction::BfEc { offset } => self.execute_bf_ec(offset),
+            DecodedInstruction::BfEq { offset } => self.execute_jmp(offset, self.creg.sr().zero()),
+            DecodedInstruction::BfNe { offset } => self.execute_jmp(offset, !self.creg.sr().zero()),
+            DecodedInstruction::BfLt { offset } => self.execute_jmp(offset, self.creg.sr().negative() != self.creg.sr().overflow()),
+            DecodedInstruction::BfLe { offset } => self.execute_jmp(offset, self.creg.sr().zero() || self.creg.sr().negative() != self.creg.sr().overflow()),
+            DecodedInstruction::BfGt { offset } => self.execute_jmp(offset, !self.creg.sr().zero() && self.creg.sr().negative() == self.creg.sr().overflow()),
+            DecodedInstruction::BfGe { offset } => self.execute_jmp(offset, self.creg.sr().negative() == self.creg.sr().overflow()),
+            DecodedInstruction::BfLtu { offset } => self.execute_jmp(offset, !self.creg.sr().carry()),
+            DecodedInstruction::BfLeu { offset } => self.execute_jmp(offset, !self.creg.sr().carry() || self.creg.sr().zero()),
+            DecodedInstruction::BfGtu { offset } => self.execute_jmp(offset, self.creg.sr().carry() && !self.creg.sr().zero()),
+            DecodedInstruction::BfGeu { offset } => self.execute_jmp(offset, self.creg.sr().carry()),
+            DecodedInstruction::BfCs { offset } => self.execute_jmp(offset, self.creg.sr().carry()),
+            DecodedInstruction::BfCc { offset } => self.execute_jmp(offset, !self.creg.sr().carry()),
+            DecodedInstruction::BfVs { offset } => self.execute_jmp(offset, self.creg.sr().overflow()),
+            DecodedInstruction::BfVc { offset } => self.execute_jmp(offset, !self.creg.sr().overflow()),
+            DecodedInstruction::BfEs { offset } => self.execute_jmp(offset, self.creg.sr().arithmetic_error()),
+            DecodedInstruction::BfEc { offset } => self.execute_jmp(offset, !self.creg.sr().arithmetic_error()),
 
             // Branch on Register Comparison
-            DecodedInstruction::BEq { ra, rb, offset } => self.execute_b_eq(ra, rb, offset),
-            DecodedInstruction::BNe { ra, rb, offset } => self.execute_b_ne(ra, rb, offset),
-            DecodedInstruction::BLt { ra, rb, offset } => self.execute_b_lt(ra, rb, offset),
-            DecodedInstruction::BLe { ra, rb, offset } => self.execute_b_le(ra, rb, offset),
-            DecodedInstruction::BGt { ra, rb, offset } => self.execute_b_gt(ra, rb, offset),
-            DecodedInstruction::BGe { ra, rb, offset } => self.execute_b_ge(ra, rb, offset),
-            DecodedInstruction::BLtu { ra, rb, offset } => self.execute_b_ltu(ra, rb, offset),
-            DecodedInstruction::BLeu { ra, rb, offset } => self.execute_b_leu(ra, rb, offset),
-            DecodedInstruction::BGtu { ra, rb, offset } => self.execute_b_gtu(ra, rb, offset),
-            DecodedInstruction::BGeu { ra, rb, offset } => self.execute_b_geu(ra, rb, offset),
+            DecodedInstruction::BEq { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) == self.read_gpr(rb)),
+            DecodedInstruction::BNe { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) != self.read_gpr(rb)),
+            DecodedInstruction::BLt { ra, rb, offset } => self.execute_jmp(offset, (self.read_gpr(ra) as i32) < self.read_gpr(rb) as i32),
+            DecodedInstruction::BLe { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) as i32 <= self.read_gpr(rb) as i32),
+            DecodedInstruction::BGt { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) as i32 > self.read_gpr(rb) as i32),
+            DecodedInstruction::BGe { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) as i32 >= self.read_gpr(rb) as i32),
+            DecodedInstruction::BLtu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) < self.read_gpr(rb)), 
+            DecodedInstruction::BLeu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) <= self.read_gpr(rb)),
+            DecodedInstruction::BGtu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) > self.read_gpr(rb)),
+            DecodedInstruction::BGeu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) >= self.read_gpr(rb)),
 
             // Jump/Call Immediate
-            DecodedInstruction::Jmp { offset } => self.execute_jmp(offset),
+            DecodedInstruction::Jmp { offset } => self.execute_jmp(offset, true),
             DecodedInstruction::Call { offset } => self.execute_call(offset),
 
             // Jump/Call Register
@@ -213,9 +234,9 @@ impl Cpu {
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // Register ALU
+    // ALU
     //
-    // Add, Sub, And, Or, Xor, Not, Neg
+    // add, addi, sub, subi, and, andi, or, ori, xor, xori, not, neg, cmp, cmpi
     fn execute_add(&mut self, rd: u8, ra: u8, imm: u32) {
         let a = self.read_gpr(ra);
 
@@ -291,6 +312,8 @@ impl Cpu {
 
     ///////////////////////////////////////////////////////////////////////////
     // Shifts
+    //
+    // shl, shli, shr, shri, sar, sari
     fn shift_guard(&mut self, count: u32) -> Option<u8> {
         if count > 31 {
             self.creg.update_sr_flags(true, false, false, false, false);
@@ -338,6 +361,8 @@ impl Cpu {
 
     ///////////////////////////////////////////////////////////////////////////
     // Bit Immediate
+    //
+    // btst, bset, bclr, btgl
     fn execute_btst(&mut self, ra: u8, imm: u8) {
         let mask = 0x01u32 << imm;
         let value = self.read_gpr(ra) & mask;
@@ -371,6 +396,8 @@ impl Cpu {
 
     ///////////////////////////////////////////////////////////////////////////
     // Multiply and Divide
+    //
+    // mul, mulu, div, divu
     fn execute_mul(&mut self, rd0: u8, rd1: u8, ra: u8, rb: u8) {
         let result = self.read_gpr(ra) as i32 as i64 * self.read_gpr(rb) as i32 as i64;
         self.write_gpr(rd0, result as u32);
@@ -431,6 +458,8 @@ impl Cpu {
 
     ///////////////////////////////////////////////////////////////////////////
     // Constant Construction
+    //
+    // lui, lli, lhi
     fn execute_lui(&mut self, rd: u8, imm16: u16) {
         let value = (imm16 as u32) << 16;
         self.write_gpr(rd, value);
@@ -453,6 +482,8 @@ impl Cpu {
 
     ///////////////////////////////////////////////////////////////////////////
     // Load and Store
+    //
+    // lb, lbu, lh, lhu, lw, sb, sh, sw
     fn load_store_bus_error(&mut self, error: SystemBusError, address: u32) {
         match error {
             SystemBusError::MisalignedAccess { .. } => {
@@ -530,174 +561,16 @@ impl Cpu {
     }
 
     ///////////////////////////////////////////////////////////////////////////
-    // Branch on Flag
-    fn execute_bf_eq(&mut self, offset: i32) {
-        if self.creg.sr().zero() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_ne(&mut self, offset: i32) {
-        if !self.creg.sr().zero() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_lt(&mut self, offset: i32) {
-        if self.creg.sr().negative() != self.creg.sr().overflow() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_le(&mut self, offset: i32) {
-        if self.creg.sr().zero() || self.creg.sr().negative() != self.creg.sr().overflow() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_gt(&mut self, offset: i32) {
-        if !self.creg.sr().zero() && self.creg.sr().negative() == self.creg.sr().overflow() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_ge(&mut self, offset: i32) {
-        if self.creg.sr().negative() == self.creg.sr().overflow() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_ltu(&mut self, offset: i32) {
-        if !self.creg.sr().carry() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_leu(&mut self, offset: i32) {
-        if !self.creg.sr().carry() || self.creg.sr().zero() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_gtu(&mut self, offset: i32) {
-        if self.creg.sr().carry() && !self.creg.sr().zero() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_geu(&mut self, offset: i32) {
-        if self.creg.sr().carry() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_cs(&mut self, offset: i32) {
-        if self.creg.sr().carry() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_cc(&mut self, offset: i32) {
-        if !self.creg.sr().carry() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_vs(&mut self, offset: i32) {
-        if self.creg.sr().overflow() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_vc(&mut self, offset: i32) {
-        if !self.creg.sr().overflow() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_es(&mut self, offset: i32) {
-        if self.creg.sr().arithmetic_error() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_bf_ec(&mut self, offset: i32) {
-        if !self.creg.sr().arithmetic_error() {
-            self.execute_jmp(offset);
-        }
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
-    // Branch on Register Comparison
-    fn execute_b_eq(&mut self, ra: u8, rb: u8, offset: i32) {
-        if self.read_gpr(ra) == self.read_gpr(rb) {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_b_ne(&mut self, ra: u8, rb: u8, offset: i32) {
-        if self.read_gpr(ra) != self.read_gpr(rb) {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_b_lt(&mut self, ra: u8, rb: u8, offset: i32) {
-        if (self.read_gpr(ra) as i32) < (self.read_gpr(rb) as i32) {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_b_le(&mut self, ra: u8, rb: u8, offset: i32) {
-        if self.read_gpr(ra) as i32 <= self.read_gpr(rb) as i32 {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_b_gt(&mut self, ra: u8, rb: u8, offset: i32) {
-        if self.read_gpr(ra) as i32 > self.read_gpr(rb) as i32 {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_b_ge(&mut self, ra: u8, rb: u8, offset: i32) {
-        if self.read_gpr(ra) as i32 >= self.read_gpr(rb) as i32 {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_b_ltu(&mut self, ra: u8, rb: u8, offset: i32) {
-        if self.read_gpr(ra) < self.read_gpr(rb) {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_b_leu(&mut self, ra: u8, rb: u8, offset: i32) {
-        if self.read_gpr(ra) <= self.read_gpr(rb) {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_b_gtu(&mut self, ra: u8, rb: u8, offset: i32) {
-        if self.read_gpr(ra) > self.read_gpr(rb) {
-            self.execute_jmp(offset);
-        }
-    }
-
-    fn execute_b_geu(&mut self, ra: u8, rb: u8, offset: i32) {
-        if self.read_gpr(ra) >= self.read_gpr(rb) {
-            self.execute_jmp(offset);
-        }
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
     // Jump/Call Immediate
-    fn execute_jmp(&mut self, offset: i32) {
-        self.creg.write_register(
-            Creg::PC,
-            self.creg
-                .read_register(Creg::PC)
-                .wrapping_add_signed(offset),
-        );
+    fn execute_jmp(&mut self, offset: i32, condition: bool) {
+        if condition {
+            self.creg.write_register(
+                Creg::PC,
+                self.creg
+                    .read_register(Creg::PC)
+                    .wrapping_add_signed(offset),
+            );
+        }
     }
 
     fn execute_call(&mut self, offset: i32) {
@@ -706,7 +579,7 @@ impl Cpu {
         // Note that PC is updated between fetch and execute, so points to
         // the correct return address already.
         self.write_gpr(gpr::R15 as u8, self.creg.read_register(Creg::PC));
-        self.execute_jmp(offset);
+        self.execute_jmp(offset, true);
     }
 
     ///////////////////////////////////////////////////////////////////////////
@@ -736,6 +609,7 @@ impl Reset for Cpu {
 impl Tick for Cpu {
     fn tick(&mut self) {
         self.tick_with_bus();
+        self.check_interrupts();
     }
 }
 
@@ -859,6 +733,51 @@ mod tests {
 
         assert_eq!(cpu.creg.read_register(Creg::PC), 4);
     }
+
+    #[test]
+    fn interrupt_sets_vector_and_iret_returns() {
+        use crate::isa::generated::{sysop, format::x};
+        
+        // These values come from SystemBus/Timer
+        const TIMER_BASE: u32 = 0xFFFF_0200;
+        const TIMER_COUNTER: u32 = TIMER_BASE + 0x00;
+        const TIMER_CONTROL: u32 = TIMER_BASE + 0x04;
+        const TIMER_COMPARE: u32 = TIMER_BASE + 0x08;
+
+        let mut cpu = Cpu::new(SystemBus::new(1024));
+        cpu.reset();
+        cpu.creg.sr_mut().set_interrupt_enable(true);
+        cpu.bus.write32(TIMER_COUNTER, 246).unwrap();
+        cpu.bus.write32(TIMER_CONTROL, 0x0000_0003).unwrap(); // enable | irq_enable
+        cpu.bus.write32(TIMER_COMPARE, 0x0000_0100).unwrap(); // 256
+
+        // Iret instruction at timer interrupt handler.
+        let iret = sysop::IRET << x::SYSOP_SHIFT;
+        cpu.bus.write32(96, iret).unwrap();
+
+        assert!(cpu.creg.read_register(Creg::PC) < 10);
+        let sr = cpu.creg.read_register(Creg::SR);
+        for _ in 0..10 {
+            cpu.tick();
+        }
+        // Interrupt vector for timer tick is 0x60 (6 * 16 bytes).
+        assert_eq!(96, cpu.creg.read_register(Creg::PC));
+        assert!(!cpu.creg.sr().interrupt_enable());
+        assert_eq!(40, cpu.creg.read_register(Creg::EPC)); // PC would have been at 11th word from starting.
+        assert_eq!(sr, cpu.creg.read_register(Creg::ESR));
+        assert_ne!(sr, cpu.creg.read_register(Creg::SR));
+        assert_eq!(ExceptionCause::TimerInterrupt as u32, cpu.creg.read_register(Creg::ECause));
+        assert_eq!(0, cpu.creg.read_register(Creg::EData));
+
+        // Normally, clearing the interrupt is software's job.
+        // Here, we're just manually disabling it.
+        cpu.bus.write32(TIMER_CONTROL, 0).unwrap();
+        cpu.tick();
+        
+        assert_eq!(40, cpu.creg.read_register(Creg::PC));
+        assert!(cpu.creg.sr().interrupt_enable());
+        assert_eq!(sr, cpu.creg.read_register(Creg::SR));
+    }
 }
 
 #[cfg(test)]
@@ -905,9 +824,8 @@ mod instruction_unit_tests {
         assert_eq!(cpu.creg.read_register(Creg::EData), edata, "EDATA");
     }
 
-    // ---------------------------------------------------------------------
+    ///////////////////////////////////////////////////////////////////////////
     // Control instructions
-    // ---------------------------------------------------------------------
 
     #[test]
     fn nop_leaves_visible_state_unchanged() {
@@ -989,9 +907,8 @@ mod instruction_unit_tests {
         assert_eq!(cpu.creg.read_register(Creg::SR), 0x0000_001F);
     }
 
-    // ---------------------------------------------------------------------
+    ///////////////////////////////////////////////////////////////////////////
     // Add/Sub/Cmp, including immediate forms
-    // ---------------------------------------------------------------------
 
     #[test]
     fn add_sets_unsigned_carry_and_zero() {
@@ -1112,9 +1029,8 @@ mod instruction_unit_tests {
         assert_flags(&mut cpu, false, false, false, false, false);
     }
 
-    // ---------------------------------------------------------------------
+    ///////////////////////////////////////////////////////////////////////////
     // Logical instructions
-    // ---------------------------------------------------------------------
 
     #[test]
     fn and_sets_zero_when_mask_clears_all_bits() {
@@ -1219,9 +1135,8 @@ mod instruction_unit_tests {
         assert_flags(&mut cpu, false, false, true, false, true);
     }
 
-    // ---------------------------------------------------------------------
+    ///////////////////////////////////////////////////////////////////////////
     // Shifts
-    // ---------------------------------------------------------------------
 
     #[test]
     fn shl_by_zero_preserves_value_and_clears_carry() {
@@ -1345,9 +1260,8 @@ mod instruction_unit_tests {
         assert_flags(&mut cpu, true, false, false, false, false);
     }
 
-    // ---------------------------------------------------------------------
+    ///////////////////////////////////////////////////////////////////////////
     // Bit immediate instructions
-    // ---------------------------------------------------------------------
 
     #[test]
     fn btst_set_bit_clears_zero_and_does_not_write_register() {
@@ -1411,9 +1325,8 @@ mod instruction_unit_tests {
         assert_flags(&mut cpu, false, true, false, false, false);
     }
 
-    // ---------------------------------------------------------------------
+    ///////////////////////////////////////////////////////////////////////////
     // Multiply and divide
-    // ---------------------------------------------------------------------
 
     #[test]
     fn mul_signed_writes_low_and_high_words() {
@@ -1581,9 +1494,8 @@ mod instruction_unit_tests {
         assert_flags(&mut cpu, true, false, false, false, false);
     }
 
-    // ---------------------------------------------------------------------
+    ///////////////////////////////////////////////////////////////////////////
     // Constant construction
-    // ---------------------------------------------------------------------
 
     #[test]
     fn lui_writes_high_half_and_sets_negative_from_result() {
@@ -1630,9 +1542,8 @@ mod instruction_unit_tests {
         assert_flags(&mut cpu, false, false, true, false, false);
     }
 
-    // ---------------------------------------------------------------------
+    ///////////////////////////////////////////////////////////////////////////
     // Load/store
-    // ---------------------------------------------------------------------
 
     #[test]
     fn lb_sign_extends_loaded_byte() {
@@ -1779,9 +1690,8 @@ mod instruction_unit_tests {
         assert_exception(&cpu, ExceptionCause::BusError, 0x2000);
     }
 
-    // ---------------------------------------------------------------------
+    ///////////////////////////////////////////////////////////////////////////
     // Branches and jumps
-    // ---------------------------------------------------------------------
 
     #[test]
     fn jmp_adds_signed_offset_to_current_pc() {

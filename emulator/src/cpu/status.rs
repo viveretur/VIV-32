@@ -15,12 +15,8 @@ impl StatusRegister {
     pub const FLAG_E: u32 = 1 << 4;
     pub const FLAG_IE: u32 = 1 << 5;
 
-    pub const VALID_MASK: u32 = Self::FLAG_N
-        | Self::FLAG_Z
-        | Self::FLAG_C
-        | Self::FLAG_V
-        | Self::FLAG_E
-        | Self::FLAG_IE;
+    pub const VALID_MASK: u32 =
+        Self::FLAG_N | Self::FLAG_Z | Self::FLAG_C | Self::FLAG_V | Self::FLAG_E | Self::FLAG_IE;
 
     pub fn new() -> Self {
         Self {
