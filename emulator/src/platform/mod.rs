@@ -8,6 +8,9 @@ mod timer;
 use clock::Clock;
 use memory_mapping::MemoryMapping;
 use ram::Ram;
-use serial::{Serial, VecSerialSink};
+pub use serial::{
+    Serial, SerialSink, SerialSource, StdinSerialSource, StdoutSerialSink, VecSerialSink,
+    VecSerialSource,
+};
 pub use system_bus::{PendingInterrupt, SystemBus, SystemBusError};
 use timer::Timer;

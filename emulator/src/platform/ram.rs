@@ -1,4 +1,4 @@
-use super::MemoryMapping;
+use super::{MemoryMapping, SystemBusError};
 
 #[derive(Debug, Clone)]
 pub struct Ram {
@@ -22,6 +22,21 @@ impl Ram {
         bytes[..data.len()].copy_from_slice(data);
 
         Self { bytes }
+    }
+
+    pub fn write_slice(&mut self, base_addr: u32, image: &[u8]) -> Result<(), SystemBusError> {
+        let start = usize::try_from(base_addr).map_err(|_| SystemBusError::AddressOverflow)?;
+
+        let end = start
+            .checked_add(image.len())
+            .ok_or(SystemBusError::AddressOverflow)?;
+
+        if end > self.bytes.len() {
+            return Err(SystemBusError::AddressUnmapped { addr: end as u32 });
+        }
+
+        self.bytes[start..end].copy_from_slice(image);
+        Ok(())
     }
 }
 

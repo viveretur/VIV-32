@@ -3,26 +3,50 @@
 //! The bus translates CPU-visible physical addresses into RAM and memory-mapped
 //! device accesses. Multi-byte accesses are big-endian and alignment-checked here;
 //! the CPU maps resulting bus errors into architectural exceptions or halts.
-use super::{Clock, MemoryMapping, Ram, Serial, Timer, VecSerialSink};
+use super::{
+    Clock, MemoryMapping, Ram, Serial, SerialSink, SerialSource, Timer, VecSerialSink,
+    VecSerialSource,
+};
 
 use crate::lifecycle::{Init, Reset, Tick};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SystemBusError {
+    AddressOverflow,
     AddressUnmapped { addr: u32 },
     UnsupportedAccess { addr: u32 },
     MisalignedAccess { addr: u32, alignment: u32 },
 }
+
+impl std::fmt::Display for SystemBusError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SystemBusError::UnsupportedAccess { addr } => {
+                write!(f, "UnsupportedAccess: 0x{addr:08X}")
+            }
+            SystemBusError::AddressUnmapped { addr } => {
+                write!(f, "unmapped bus address: 0x{addr:08X}")
+            }
+            SystemBusError::MisalignedAccess { addr, alignment } => {
+                write!(f, "misaligned bus access: 0x{addr:08X}, [{alignment}]")
+            }
+            SystemBusError::AddressOverflow => {
+                write!(f, "bus address overflow")
+            }
+        }
+    }
+}
+
+impl std::error::Error for SystemBusError {}
 
 const RAM_BASE: u32 = 0x0000_0000;
 const SERIAL_BASE: u32 = 0xFFFF_0000;
 const CLOCK_BASE: u32 = 0xFFFF_0100;
 const TIMER_BASE: u32 = 0xFFFF_0200;
 
-#[derive(Debug)]
 pub struct SystemBus {
     ram: Ram,
-    serial: Serial<VecSerialSink>,
+    serial: Serial<Box<dyn SerialSink>, Box<dyn SerialSource>>,
     clock: Clock,
     timer: Timer,
 }
@@ -37,7 +61,10 @@ impl SystemBus {
     pub fn new(ram_size: u32) -> Self {
         Self {
             ram: Ram::new(ram_size),
-            serial: Serial::new(VecSerialSink::new()),
+            serial: Serial::new(
+                Box::new(VecSerialSink::new()),
+                Box::new(VecSerialSource::default()),
+            ),
             clock: Clock::new(),
             timer: Timer::new(),
         }
@@ -46,10 +73,30 @@ impl SystemBus {
     pub fn with_ram_image(ram_size: u32, image: &[u8]) -> Self {
         Self {
             ram: Ram::from_bytes(ram_size, image),
-            serial: Serial::new(VecSerialSink::new()),
+            serial: Serial::new(
+                Box::new(VecSerialSink::new()),
+                Box::new(VecSerialSource::default()),
+            ),
             clock: Clock::new(),
             timer: Timer::new(),
         }
+    }
+
+    pub fn with_serial(
+        ram_size: u32,
+        serial_sink: Box<dyn SerialSink>,
+        serial_source: Box<dyn SerialSource>,
+    ) -> Self {
+        Self {
+            ram: Ram::new(ram_size),
+            serial: Serial::new(serial_sink, serial_source),
+            clock: Clock::new(),
+            timer: Timer::new(),
+        }
+    }
+
+    pub fn load_ram_image(&mut self, base_addr: u32, image: &[u8]) -> Result<(), SystemBusError> {
+        self.ram.write_slice(base_addr, image)
     }
 
     fn check_alignment(addr: u32, alignment: u32) -> Result<(), SystemBusError> {
@@ -171,6 +218,17 @@ impl SystemBus {
         // }
 
         None
+    }
+}
+
+impl std::fmt::Debug for SystemBus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SystemBus")
+            .field("ram", &self.ram)
+            .field("serial", &"<serial>")
+            .field("clock", &self.clock)
+            .field("timer", &self.timer)
+            .finish()
     }
 }
 
