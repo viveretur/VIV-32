@@ -3,12 +3,9 @@
 //! The bus translates CPU-visible physical addresses into RAM and memory-mapped
 //! device accesses. Multi-byte accesses are big-endian and alignment-checked here;
 //! the CPU maps resulting bus errors into architectural exceptions or halts.
-use super::{
-    Clock, MemoryMapping, Ram, Serial, SerialSink, SerialSource, Timer, VecSerialSink,
-    VecSerialSource,
-};
+use super::{BusDevice, MappedDevice};
 
-use crate::lifecycle::{Init, Reset, Tick};
+use crate::Lifecycle;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SystemBusError {
@@ -39,64 +36,64 @@ impl std::fmt::Display for SystemBusError {
 
 impl std::error::Error for SystemBusError {}
 
-const RAM_BASE: u32 = 0x0000_0000;
-const SERIAL_BASE: u32 = 0xFFFF_0000;
-const CLOCK_BASE: u32 = 0xFFFF_0100;
-const TIMER_BASE: u32 = 0xFFFF_0200;
-
-pub struct SystemBus {
-    ram: Ram,
-    serial: Serial<Box<dyn SerialSink>, Box<dyn SerialSource>>,
-    clock: Clock,
-    timer: Timer,
-}
+pub const IRQ_LINES: usize = 16;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum PendingInterrupt {
-    Timer,
-    External { source: u32 },
+pub struct DeviceId(usize);
+
+pub struct SystemBus {
+    devices: Vec<MappedDevice>,
+    irq_table: [Option<DeviceId>; IRQ_LINES],
 }
 
 impl SystemBus {
-    pub fn new(ram_size: u32) -> Self {
+    pub fn new() -> Self {
         Self {
-            ram: Ram::new(ram_size),
-            serial: Serial::new(
-                Box::new(VecSerialSink::new()),
-                Box::new(VecSerialSource::default()),
-            ),
-            clock: Clock::new(),
-            timer: Timer::new(),
+            devices: Vec::new(),
+            irq_table: [None; IRQ_LINES],
         }
     }
 
-    pub fn with_ram_image(ram_size: u32, image: &[u8]) -> Self {
-        Self {
-            ram: Ram::from_bytes(ram_size, image),
-            serial: Serial::new(
-                Box::new(VecSerialSink::new()),
-                Box::new(VecSerialSource::default()),
-            ),
-            clock: Clock::new(),
-            timer: Timer::new(),
+    pub fn map_device(&mut self, base: u32, device: Box<dyn BusDevice>) -> DeviceId {
+        let size = device.size();
+
+        assert!(
+            size > 0,
+            "cannot map zero-sized device at base=0x{base:08X}"
+        );
+
+        let end_exclusive = u64::from(base) + u64::from(size);
+
+        assert!(
+            end_exclusive <= 0x1_0000_0000,
+            "device mapping overflows address space: base=0x{base:08X}, size=0x{size:08X}"
+        );
+
+        for existing in &self.devices {
+            assert!(
+                !existing.overlaps(base, size),
+                "device mapping overlaps existing mapping: new=0x{base:08X}..0x{end_exclusive:08X}, existing=0x{:08X}..0x{:08X}",
+                existing.base(),
+                existing.end_exclusive(),
+            );
         }
+
+        let mapped = MappedDevice::new(base, device);
+        let id = DeviceId(self.devices.len());
+        self.devices.push(mapped);
+        id
     }
 
-    pub fn with_serial(
-        ram_size: u32,
-        serial_sink: Box<dyn SerialSink>,
-        serial_source: Box<dyn SerialSource>,
-    ) -> Self {
-        Self {
-            ram: Ram::new(ram_size),
-            serial: Serial::new(serial_sink, serial_source),
-            clock: Clock::new(),
-            timer: Timer::new(),
-        }
-    }
+    pub fn register_irq(&mut self, irq_line: usize, device_id: DeviceId) {
+        assert!(irq_line < IRQ_LINES, "IRQ line out of range: {irq_line}");
 
-    pub fn load_ram_image(&mut self, base_addr: u32, image: &[u8]) -> Result<(), SystemBusError> {
-        self.ram.write_slice(base_addr, image)
+        assert!(
+            device_id.0 < self.devices.len(),
+            "invalid device id: {:?}",
+            device_id
+        );
+
+        self.irq_table[irq_line] = Some(device_id);
     }
 
     fn check_alignment(addr: u32, alignment: u32) -> Result<(), SystemBusError> {
@@ -112,56 +109,24 @@ impl SystemBus {
     }
 
     pub fn read8(&mut self, addr: u32) -> Result<u8, SystemBusError> {
-        if let Some(value) = self.ram.read8(Self::device_offset(addr, RAM_BASE)) {
-            return Ok(value);
-        }
-
-        if let Some(value) = self.serial.read8(Self::device_offset(addr, SERIAL_BASE)) {
-            return Ok(value);
-        }
-
-        if let Some(value) = self.clock.read8(Self::device_offset(addr, CLOCK_BASE)) {
-            return Ok(value);
-        }
-
-        if let Some(value) = self.timer.read8(Self::device_offset(addr, TIMER_BASE)) {
-            return Ok(value);
+        for device in &mut self.devices {
+            if device.contains(addr) {
+                if let Some(value) = device.read8(device.offset(addr)) {
+                    return Ok(value);
+                }
+            }
         }
 
         Err(SystemBusError::AddressUnmapped { addr })
     }
 
     pub fn write8(&mut self, addr: u32, value: u8) -> Result<(), SystemBusError> {
-        if self
-            .ram
-            .write8(Self::device_offset(addr, RAM_BASE), value)
-            .is_some()
-        {
-            return Ok(());
-        }
-
-        if self
-            .serial
-            .write8(Self::device_offset(addr, SERIAL_BASE), value)
-            .is_some()
-        {
-            return Ok(());
-        }
-
-        if self
-            .clock
-            .write8(Self::device_offset(addr, CLOCK_BASE), value)
-            .is_some()
-        {
-            return Ok(());
-        }
-
-        if self
-            .timer
-            .write8(Self::device_offset(addr, TIMER_BASE), value)
-            .is_some()
-        {
-            return Ok(());
+        for device in &mut self.devices {
+            if device.contains(addr) {
+                if device.write8(device.offset(addr), value).is_some() {
+                    return Ok(());
+                }
+            }
         }
 
         Err(SystemBusError::AddressUnmapped { addr })
@@ -207,59 +172,75 @@ impl SystemBus {
         Ok(())
     }
 
-    pub fn pending_interrupt(&self) -> Option<PendingInterrupt> {
-        if self.timer.interrupt_asserted() {
-            return Some(PendingInterrupt::Timer);
-        }
+    pub fn pending_interrupt(&self) -> Option<u32> {
+        self.irq_table.iter().flatten().find_map(|device_id| {
+            let device = &self.devices[device_id.0];
 
-        // Later:
-        // if self.serial.interrupt_asserted() {
-        //     return Some(PendingInterrupt::External { source: SERIAL_IRQ });
-        // }
-
-        None
+            if device.interrupt_asserted() {
+                Some(device.base())
+            } else {
+                None
+            }
+        })
     }
 }
 
 impl std::fmt::Debug for SystemBus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SystemBus")
-            .field("ram", &self.ram)
-            .field("serial", &"<serial>")
-            .field("clock", &self.clock)
-            .field("timer", &self.timer)
+            .field("devices", &self.devices)
+            .field("irq_table", &self.irq_table)
             .finish()
     }
 }
 
-impl Reset for SystemBus {
+impl Default for SystemBus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Lifecycle for SystemBus {
     fn reset(&mut self) {
-        self.serial.reset();
-        self.clock.reset();
-        self.timer.reset();
+        for device in &mut self.devices {
+            device.reset();
+        }
     }
-}
 
-impl Init for SystemBus {
     fn init(&mut self) {
-        self.reset();
+        for device in &mut self.devices {
+            device.init();
+        }
     }
-}
 
-impl Tick for SystemBus {
     fn tick(&mut self) {
-        self.clock.tick();
-        self.timer.tick();
+        for device in &mut self.devices {
+            device.tick();
+        }
+    }
+
+    fn halt(&mut self) {
+        for device in &mut self.devices {
+            device.halt();
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Clock, Ram, Serial, Timer, VecSerialSink, VecSerialSource};
+
+    fn test_bus() -> SystemBus {
+        let mut bus = SystemBus::new();
+        let ram = Box::new(Ram::new(1024));
+        bus.map_device(0, ram);
+        bus
+    }
 
     #[test]
     fn ram_byte_roundtrip_routes_through_system_bus() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
 
         bus.write8(0x0000_0010, 0xAB).unwrap();
 
@@ -268,7 +249,7 @@ mod tests {
 
     #[test]
     fn ram_halfword_roundtrip_uses_big_endian_bus_helpers() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
 
         bus.write16(0x0000_0010, 0x1234).unwrap();
 
@@ -279,7 +260,7 @@ mod tests {
 
     #[test]
     fn ram_word_roundtrip_uses_big_endian_bus_helpers() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
 
         bus.write32(0x0000_0010, 0x1234_5678).unwrap();
 
@@ -292,7 +273,7 @@ mod tests {
 
     #[test]
     fn misaligned_halfword_access_fails_through_system_bus() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
 
         assert_eq!(
             bus.read16(0x0000_0001),
@@ -313,7 +294,7 @@ mod tests {
 
     #[test]
     fn misaligned_word_access_fails_through_system_bus() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
 
         assert_eq!(
             bus.read32(0x0000_0002),
@@ -334,7 +315,7 @@ mod tests {
 
     #[test]
     fn unmapped_byte_read_fails() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
 
         assert_eq!(
             bus.read8(0x0000_1000),
@@ -344,7 +325,7 @@ mod tests {
 
     #[test]
     fn unmapped_byte_write_fails() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
 
         assert_eq!(
             bus.write8(0x0000_1000, 0xAB),
@@ -354,38 +335,46 @@ mod tests {
 
     #[test]
     fn read32_clock_low_word_uses_big_endian_mapped_bytes() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
+        let clock = Box::new(Clock::new());
+        bus.map_device(0xFFFF_0000, clock);
 
         bus.tick();
         bus.tick();
 
-        assert_eq!(bus.read32(CLOCK_BASE + 0x00), Ok(2));
+        assert_eq!(bus.read8(0xFFFF_0003), Ok(2));
     }
 
     #[test]
     fn write32_timer_counter_uses_big_endian_mapped_bytes() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
+        let timer = Box::new(Timer::new());
+        bus.map_device(0xFFFF_0000, timer);
 
-        bus.write32(TIMER_BASE + 0x00, 0x1234_5678).unwrap();
+        bus.write32(0xFFFF_0000, 0x1234_5678).unwrap();
 
-        assert_eq!(bus.read32(TIMER_BASE + 0x00), Ok(0x1234_5678));
+        assert_eq!(bus.read16(0xFFFF_0000), Ok(0x1234));
+        assert_eq!(bus.read16(0xFFFF_0002), Ok(0x5678));
     }
 
     #[test]
     fn address_below_serial_base_does_not_map_to_serial_by_wrapping() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
+        let serial = Box::new(Serial::new(
+            VecSerialSink::new(),
+            VecSerialSource::new([0xFu8; 12]),
+        ));
+        bus.map_device(0xFFFF_0000, serial);
 
         assert_eq!(
-            bus.read8(SERIAL_BASE - 1),
-            Err(SystemBusError::AddressUnmapped {
-                addr: SERIAL_BASE - 1
-            })
+            bus.read8(0xFFFE_FFFF),
+            Err(SystemBusError::AddressUnmapped { addr: 0xFFFE_FFFF })
         );
     }
 
     #[test]
     fn unmapped_address_returns_address_unmapped_after_all_devices_decline() {
-        let mut bus = SystemBus::new(1024);
+        let mut bus = test_bus();
 
         assert_eq!(
             bus.read8(0x0000_1000),

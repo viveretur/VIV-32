@@ -4,9 +4,11 @@ mod lifecycle;
 mod machine;
 mod platform;
 
-use cpu::Cpu;
-pub use machine::{Machine, MachineConfig};
+pub use cpu::Cpu;
+pub use lifecycle::Lifecycle;
+pub use machine::{Machine, MachineTomlConfig};
 pub use platform::{
-    SerialSink, SerialSource, StdinSerialSource, StdoutSerialSink, SystemBus, SystemBusError,
-    VecSerialSink, VecSerialSource,
+    BusDevice, Clock, DeviceId, MappedDevice, Ram, Serial, SerialSink, SerialSource,
+    StdinSerialSource, StdoutSerialSink, SystemBus, SystemBusError, Timer, VecSerialSink,
+    VecSerialSource,
 };

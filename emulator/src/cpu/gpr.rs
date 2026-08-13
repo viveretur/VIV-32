@@ -1,5 +1,5 @@
+use crate::Lifecycle;
 use crate::isa::generated::gpr;
-use crate::lifecycle::{Init, Reset};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GprFile {
@@ -38,13 +38,11 @@ impl GprFile {
     }
 }
 
-impl Init for GprFile {
+impl Lifecycle for GprFile {
     fn init(&mut self) {
         self.reset();
     }
-}
 
-impl Reset for GprFile {
     fn reset(&mut self) {
         self.registers = [0; Self::COUNT];
     }

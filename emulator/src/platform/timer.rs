@@ -1,6 +1,6 @@
-use super::MemoryMapping;
+use super::BusDevice;
 
-use crate::lifecycle::{Init, Reset, Tick};
+use crate::Lifecycle;
 
 #[derive(Debug, Clone)]
 pub struct Timer {
@@ -53,7 +53,7 @@ impl Timer {
         self.control & CONTROL_IRQ_PENDING != 0
     }
 
-    pub fn interrupt_asserted(&self) -> bool {
+    fn interrupt_asserted(&self) -> bool {
         self.control & CONTROL_IRQ_ENABLE != 0 && self.interrupt_pending()
     }
 
@@ -100,22 +100,18 @@ impl Timer {
     }
 }
 
-impl Init for Timer {
+impl Lifecycle for Timer {
     fn init(&mut self) {
         self.reset();
     }
-}
 
-impl Reset for Timer {
     fn reset(&mut self) {
         self.counter = 0;
         self.prescale_counter = 0;
         self.control = 0;
         self.compare = 0xFFFF_FFFF;
     }
-}
 
-impl Tick for Timer {
     fn tick(&mut self) {
         if !self.enabled() {
             return;
@@ -148,7 +144,11 @@ impl Default for Timer {
     }
 }
 
-impl MemoryMapping for Timer {
+impl BusDevice for Timer {
+    fn size(&self) -> u32 {
+        12
+    }
+
     fn read8(&mut self, offset: u32) -> Option<u8> {
         match offset {
             COUNTER_OFFSET..=COUNTER_END_OFFSET => {
@@ -207,6 +207,10 @@ impl MemoryMapping for Timer {
 
             _ => None,
         }
+    }
+
+    fn interrupt_asserted(&self) -> bool {
+        Timer::interrupt_asserted(self)
     }
 }
 

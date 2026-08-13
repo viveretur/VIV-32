@@ -1,4 +1,4 @@
-use crate::lifecycle::Reset;
+use crate::Lifecycle;
 
 use super::{ExceptionCause, ProgramCounter, StatusRegister};
 
@@ -58,15 +58,6 @@ impl CregFile {
         self.sr.set_negative(negative);
         self.sr.set_carry(carry);
         self.sr.set_overflow(overflow);
-    }
-
-    pub(crate) fn reset(&mut self) {
-        self.pc
-            .set(self.evbase + ExceptionCause::Reset.vector_offset());
-        self.sr.reset();
-        self.epc = 0;
-        self.ecause = ExceptionCause::Reset as u32;
-        self.evbase = 0;
     }
 
     pub(crate) fn advance_pc_word(&mut self) {
@@ -135,5 +126,20 @@ impl CregFile {
                 self.evbase = value;
             }
         }
+    }
+}
+
+impl Lifecycle for CregFile {
+    fn init(&mut self) {
+        self.pc
+            .set(self.evbase + ExceptionCause::Reset.vector_offset());
+        self.sr.reset();
+        self.epc = 0;
+        self.ecause = ExceptionCause::Reset as u32;
+        self.evbase = 0;
+    }
+
+    fn reset(&mut self) {
+        self.init();
     }
 }

@@ -1,4 +1,4 @@
-use crate::lifecycle::{Init, Reset};
+use crate::Lifecycle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProgramCounter {
@@ -31,13 +31,11 @@ impl ProgramCounter {
     }
 }
 
-impl Init for ProgramCounter {
+impl Lifecycle for ProgramCounter {
     fn init(&mut self) {
         self.reset();
     }
-}
 
-impl Reset for ProgramCounter {
     fn reset(&mut self) {
         self.value = Self::RESET_VALUE;
     }

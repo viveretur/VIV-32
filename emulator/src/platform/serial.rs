@@ -1,8 +1,8 @@
 use std::collections::VecDeque;
 
-use super::MemoryMapping;
+use super::BusDevice;
 
-use crate::lifecycle::{Init, Reset};
+use crate::Lifecycle;
 
 pub trait SerialSink {
     fn write_byte(&mut self, byte: u8);
@@ -180,19 +180,15 @@ where
     }
 }
 
-impl<S, T> Init for Serial<S, T>
+impl<S, T> Lifecycle for Serial<S, T>
 where
     S: SerialSink,
+    T: SerialSource,
 {
     fn init(&mut self) {
         self.reset();
     }
-}
 
-impl<S, T> Reset for Serial<S, T>
-where
-    S: SerialSink,
-{
     fn reset(&mut self) {
         self.control = 0;
     }
@@ -208,11 +204,15 @@ where
     }
 }
 
-impl<S, T> MemoryMapping for Serial<S, T>
+impl<S, T> BusDevice for Serial<S, T>
 where
     S: SerialSink,
     T: SerialSource,
 {
+    fn size(&self) -> u32 {
+        12
+    }
+
     fn read8(&mut self, offset: u32) -> Option<u8> {
         match offset {
             DATA_OFFSET => self.read_data(),

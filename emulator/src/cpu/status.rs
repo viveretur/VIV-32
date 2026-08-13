@@ -1,4 +1,4 @@
-use crate::lifecycle::{Init, Reset};
+use crate::Lifecycle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StatusRegister {
@@ -99,13 +99,11 @@ impl StatusRegister {
     }
 }
 
-impl Init for StatusRegister {
+impl Lifecycle for StatusRegister {
     fn init(&mut self) {
         self.reset();
     }
-}
 
-impl Reset for StatusRegister {
     fn reset(&mut self) {
         self.value = Self::RESET_VALUE;
     }

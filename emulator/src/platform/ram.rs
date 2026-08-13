@@ -1,4 +1,6 @@
-use super::{MemoryMapping, SystemBusError};
+use super::{BusDevice, SystemBusError};
+
+use crate::Lifecycle;
 
 #[derive(Debug, Clone)]
 pub struct Ram {
@@ -40,7 +42,11 @@ impl Ram {
     }
 }
 
-impl MemoryMapping for Ram {
+impl BusDevice for Ram {
+    fn size(&self) -> u32 {
+        self.bytes.len() as u32
+    }
+
     fn read8(&mut self, offset: u32) -> Option<u8> {
         self.bytes.get(offset as usize).copied()
     }
@@ -51,6 +57,8 @@ impl MemoryMapping for Ram {
         Some(())
     }
 }
+
+impl Lifecycle for Ram {}
 
 #[cfg(test)]
 mod tests {

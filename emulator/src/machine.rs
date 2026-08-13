@@ -4,29 +4,54 @@
 //! instance. Construction loads the host-side machine image; `reset` starts the
 //! architectural machine; `tick` advances execution by one CPU tick.
 use crate::{
-    Cpu, SystemBus, SystemBusError,
-    lifecycle::Reset,
-    platform::{SerialSink, SerialSource, VecSerialSink, VecSerialSource},
+    Cpu, Lifecycle, SystemBus, SystemBusError,
+    platform::{
+        Clock, Ram, Serial, SerialSink, SerialSource, StdinSerialSource, StdoutSerialSink, Timer,
+        VecSerialSink, VecSerialSource,
+    },
 };
 
-pub struct MachineConfig {
-    pub ram_size: u32,
-    pub ram_image: Option<Vec<u8>>,
-    pub ram_image_base: u32,
-    pub serial_sink: Option<Box<dyn SerialSink>>,
-    pub serial_source: Option<Box<dyn SerialSource>>,
+#[derive(Debug, serde::Deserialize)]
+pub struct MachineTomlConfig {
+    pub devices: Vec<DeviceTomlConfig>,
 }
 
-impl Default for MachineConfig {
-    fn default() -> Self {
-        Self {
-            ram_size: 64 * 1024,
-            ram_image: None,
-            ram_image_base: 0,
-            serial_sink: None,
-            serial_source: None,
-        }
-    }
+#[derive(Debug, serde::Deserialize)]
+pub struct DeviceTomlConfig {
+    pub name: Option<String>,
+    pub kind: DeviceKind,
+    pub base: u32,
+    pub size: Option<u32>,
+    pub irq: Option<usize>,
+
+    pub image: Option<std::path::PathBuf>,
+    pub image_base: Option<u32>,
+
+    pub sink: Option<SerialSinkKind>,
+    pub source: Option<SerialSourceKind>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviceKind {
+    Ram,
+    Serial,
+    Timer,
+    Clock,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SerialSinkKind {
+    Stdout,
+    Vec,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SerialSourceKind {
+    Empty,
+    Stdin,
 }
 
 pub struct Machine {
@@ -42,41 +67,66 @@ impl Machine {
         }
     }
 
-    pub fn from_config(mut config: MachineConfig) -> Result<Self, SystemBusError> {
-        let serial_sink = config
-            .serial_sink
-            .take()
-            .unwrap_or_else(|| Box::new(VecSerialSink::new()));
+    pub fn from_toml_config(config: MachineTomlConfig) -> Self {
+        let mut bus = SystemBus::new();
 
-        let serial_source = config
-            .serial_source
-            .take()
-            .unwrap_or_else(|| Box::new(VecSerialSource::default()));
+        for device_config in config.devices {
+            let device_id = match device_config.kind {
+                DeviceKind::Ram => {
+                    let size = device_config.size.expect("Missing RAM size!");
 
-        let mut bus = SystemBus::with_serial(config.ram_size, serial_sink, serial_source);
+                    let mut ram = Ram::new(size);
 
-        if let Some(image) = config.ram_image.as_ref() {
-            bus.load_ram_image(config.ram_image_base, image)?;
+                    if let Some(path) = device_config.image.as_ref() {
+                        let image = std::fs::read(path).expect("Error reading file");
+                        ram.write_slice(device_config.image_base.unwrap_or(0), &image);
+                    }
+
+                    bus.map_device(device_config.base, Box::new(ram))
+                }
+
+                DeviceKind::Serial => {
+                    let sink: Box<dyn SerialSink> = match device_config.sink {
+                        Some(SerialSinkKind::Stdout) | None => Box::new(StdoutSerialSink),
+                        Some(SerialSinkKind::Vec) => Box::new(VecSerialSink::new()),
+                    };
+
+                    let source: Box<dyn SerialSource> = match device_config.source {
+                        Some(SerialSourceKind::Empty) | None => {
+                            Box::new(VecSerialSource::default())
+                        }
+                        Some(SerialSourceKind::Stdin) => {
+                            let mut bytes = Vec::new();
+                            std::io::Read::read_to_end(&mut std::io::stdin(), &mut bytes)
+                                .expect("Failed to load file.");
+                            Box::new(VecSerialSource::new(bytes))
+                        }
+                    };
+
+                    let serial = Serial::new(sink, source);
+                    bus.map_device(device_config.base, Box::new(serial))
+                }
+
+                DeviceKind::Timer => bus.map_device(device_config.base, Box::new(Timer::new())),
+
+                DeviceKind::Clock => bus.map_device(device_config.base, Box::new(Clock::new())),
+            };
+
+            if let Some(irq) = device_config.irq {
+                bus.register_irq(irq, device_id);
+            }
         }
 
-        Ok(Self::new(bus))
+        Self::new(bus)
     }
 
-    pub fn with_ram_size(ram_size: u32) -> Self {
-        Self::from_config(MachineConfig {
-            ram_size,
-            ..MachineConfig::default()
-        })
-        .expect("default machine configuration should be valid")
-    }
+    pub fn from_toml_file(path: impl AsRef<std::path::Path>) -> Self {
+        let text = std::fs::read_to_string(path).expect("failed to read machine TOML config");
 
-    pub fn with_ram_image(ram_size: u32, image: Vec<u8>) -> Result<Self, SystemBusError> {
-        Self::from_config(MachineConfig {
-            ram_size,
-            ram_image: Some(image),
-            ram_image_base: 0,
-            ..MachineConfig::default()
-        })
+        let config: MachineTomlConfig =
+            toml::from_str(&text).expect("failed to parse machine TOML config");
+
+        Self::from_toml_config(config)
     }
 
     pub fn bus(&self) -> &SystemBus {
@@ -95,8 +145,8 @@ impl Machine {
         &mut self.cpu
     }
 
-    pub fn is_running(&self) -> bool {
-        !self.cpu.is_halted()
+    pub fn halted(&self) -> bool {
+        self.cpu.is_halted()
     }
 
     pub fn reset(&mut self) {

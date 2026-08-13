@@ -1,11 +1,9 @@
-pub trait Reset {
-    fn reset(&mut self);
-}
+pub trait Lifecycle {
+    fn reset(&mut self) {}
 
-pub trait Init {
-    fn init(&mut self);
-}
+    fn init(&mut self) {}
 
-pub trait Tick {
-    fn tick(&mut self);
+    fn tick(&mut self) {}
+
+    fn halt(&mut self) {}
 }

@@ -1,7 +1,7 @@
 use super::{Creg, CregFile, DecodedInstruction, ExceptionCause, GprFile, decode};
 
 use crate::{
-    lifecycle::{Init, Reset, Tick},
+    Lifecycle,
     platform::{SystemBus, SystemBusError},
 };
 
@@ -56,23 +56,12 @@ impl Cpu {
     }
 
     fn check_interrupts(&mut self, bus: &SystemBus) {
-        use crate::platform::PendingInterrupt;
-
         if !self.creg.sr().interrupt_enable() {
             return;
         }
 
-        match bus.pending_interrupt() {
-            Some(PendingInterrupt::Timer) => {
-                self.creg.raise_exception(ExceptionCause::TimerInterrupt, 0);
-            }
-
-            Some(PendingInterrupt::External { source }) => {
-                self.creg
-                    .raise_exception(ExceptionCause::ExternalInterrupt, source);
-            }
-
-            None => {}
+        if let Some(data) = bus.pending_interrupt() {
+            self.creg.raise_exception(ExceptionCause::Interrupt, data);
         }
     }
 
@@ -81,7 +70,6 @@ impl Cpu {
             return;
         }
         
-        self.check_interrupts(bus);
         let fetch_pc = self.creg.read_register(Creg::PC);
 
         let instruction = match bus.read32(fetch_pc) {
@@ -595,23 +583,24 @@ impl Cpu {
     }
 }
 
-impl Init for Cpu {
+impl Lifecycle for Cpu {
     fn init(&mut self) {
         self.reset_internal();
     }
-}
 
-impl Reset for Cpu {
     fn reset(&mut self) {
         self.reset_internal();
+    }
+
+    fn halt(&mut self) {
+        self.halt();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cpu::{ProgramCounter, StatusRegister};
-    use crate::isa::generated::gpr;
+    use crate::{cpu::{ProgramCounter, StatusRegister}, isa::generated::gpr, Ram};
 
     #[test]
     fn new_cpu_starts_halted_with_reset_registers() {
@@ -696,7 +685,7 @@ mod tests {
     #[test]
     fn halted_tick_is_a_noop() {
         let mut cpu = Cpu::new();
-        let mut bus = SystemBus::new(1024);
+        let mut bus = SystemBus::new();
 
         cpu.tick_with_bus(&mut bus);
 
@@ -722,7 +711,9 @@ mod tests {
     #[test]
     fn tick_increments_pc() {
         let mut cpu = Cpu::new();
-        let mut bus = SystemBus::new(1024);
+        let mut bus = SystemBus::new();
+        let ram = Box::new(Ram::new(1024));
+        bus.map_device(0, ram);
 
         cpu.reset();
         cpu.tick_with_bus(&mut bus);
@@ -732,17 +723,24 @@ mod tests {
 
     #[test]
     fn interrupt_sets_vector_and_iret_returns() {
-        use crate::isa::generated::{sysop, format::x};
+        use crate::{isa::generated::{sysop, format::x}, Timer};
         
-        // These values come from SystemBus/Timer
+        // Values for test offset.
         const TIMER_BASE: u32 = 0xFFFF_0200;
         const TIMER_COUNTER: u32 = TIMER_BASE + 0x00;
         const TIMER_CONTROL: u32 = TIMER_BASE + 0x04;
         const TIMER_COMPARE: u32 = TIMER_BASE + 0x08;
 
         let mut cpu = Cpu::new();
-        let mut bus = SystemBus::new(1024);
+        let mut bus = SystemBus::new();
+        let ram = Box::new(Ram::new(1024));
+        let timer = Box::new(Timer::new());
+        bus.map_device(0, ram);
+        let timer_id = bus.map_device(TIMER_BASE, timer);
+        bus.register_irq(0, timer_id);
+        
         cpu.reset();
+        bus.reset();
         cpu.creg.sr_mut().set_interrupt_enable(true);
         bus.write32(TIMER_COUNTER, 246).unwrap();
         bus.write32(TIMER_CONTROL, 0x0000_0003).unwrap(); // enable | irq_enable
@@ -763,8 +761,8 @@ mod tests {
         assert_eq!(40, cpu.creg.read_register(Creg::EPC)); // PC would have been at 11th word from starting.
         assert_eq!(sr, cpu.creg.read_register(Creg::ESR));
         assert_ne!(sr, cpu.creg.read_register(Creg::SR));
-        assert_eq!(ExceptionCause::TimerInterrupt as u32, cpu.creg.read_register(Creg::ECause));
-        assert_eq!(0, cpu.creg.read_register(Creg::EData));
+        assert_eq!(ExceptionCause::Interrupt as u32, cpu.creg.read_register(Creg::ECause));
+        assert_eq!(TIMER_BASE, cpu.creg.read_register(Creg::EData));
 
         // Normally, clearing the interrupt is software's job.
         // Here, we're just manually disabling it.
@@ -780,11 +778,14 @@ mod tests {
 #[cfg(test)]
 mod instruction_unit_tests {
     use super::*;
-    use crate::isa::generated::gpr;
+    use crate::{isa::generated::gpr, Ram};
 
     fn test_harness() -> (SystemBus, Cpu) {
         let mut cpu = Cpu::new();
-        let mut bus = SystemBus::new(4096);
+        let mut bus = SystemBus::new();
+        let ram = Box::new(Ram::new(4096));
+        bus.map_device(0, ram);
+        
         cpu.reset();
         bus.reset();
         (bus, cpu)

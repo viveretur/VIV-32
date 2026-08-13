@@ -1,6 +1,6 @@
-use super::MemoryMapping;
+use super::BusDevice;
 
-use crate::lifecycle::{Init, Reset, Tick};
+use crate::Lifecycle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Clock {
@@ -17,19 +17,15 @@ impl Clock {
     }
 }
 
-impl Init for Clock {
+impl Lifecycle for Clock {
     fn init(&mut self) {
         self.reset();
     }
-}
 
-impl Reset for Clock {
     fn reset(&mut self) {
         self.cycles = 0;
     }
-}
 
-impl Tick for Clock {
     fn tick(&mut self) {
         self.cycles = self.cycles.wrapping_add(1);
     }
@@ -41,7 +37,11 @@ impl Default for Clock {
     }
 }
 
-impl MemoryMapping for Clock {
+impl BusDevice for Clock {
+    fn size(&self) -> u32 {
+        8
+    }
+
     fn read8(&mut self, offset: u32) -> Option<u8> {
         let cycles = self.cycles();
 
