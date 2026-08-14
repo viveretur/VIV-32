@@ -7,7 +7,7 @@ use super::{BusDevice, MappedDevice};
 
 use crate::Lifecycle;
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq)]
 pub enum SystemBusError {
     AddressOverflow,
     AddressUnmapped { addr: u32 },
@@ -34,6 +34,11 @@ impl std::fmt::Display for SystemBusError {
     }
 }
 
+impl std::fmt::Debug for SystemBusError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
 impl std::error::Error for SystemBusError {}
 
 pub const IRQ_LINES: usize = 16;
@@ -104,14 +109,10 @@ impl SystemBus {
         Ok(())
     }
 
-    fn device_offset(addr: u32, base: u32) -> u32 {
-        addr.wrapping_sub(base)
-    }
-
     pub fn read8(&mut self, addr: u32) -> Result<u8, SystemBusError> {
         for device in &mut self.devices {
             if device.contains(addr) {
-                if let Some(value) = device.read8(device.offset(addr)) {
+                if let Some(value) = device.read8(addr) {
                     return Ok(value);
                 }
             }
@@ -123,7 +124,7 @@ impl SystemBus {
     pub fn write8(&mut self, addr: u32, value: u8) -> Result<(), SystemBusError> {
         for device in &mut self.devices {
             if device.contains(addr) {
-                if device.write8(device.offset(addr), value).is_some() {
+                if device.write8(addr, value).is_some() {
                     return Ok(());
                 }
             }

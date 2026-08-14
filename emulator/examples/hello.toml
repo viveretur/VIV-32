@@ -2,20 +2,20 @@
 name = "ram"
 kind = "ram"
 base = 0
-size = 65536
+size = 1024
 image = "examples/hello.bin"
 image_base = 0
 
 [[devices]]
 name = "timer"
 kind = "timer"
-base = 4294902272
+base = 0xFFFF_0100
 irq = 0
 
 [[devices]]
 name = "serial"
 kind = "serial"
-base = 4294901760
+base = 0xFFFF_0200
 irq = 1
 sink = "stdout"
 source = "empty"
@@ -23,4 +23,4 @@ source = "empty"
 [[devices]]
 name = "clock"
 kind = "clock"
-base = 4294902016
+base = 0xFFFF_0000

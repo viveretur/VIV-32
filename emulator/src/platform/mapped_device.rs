@@ -54,12 +54,12 @@ impl BusDevice for MappedDevice {
         self.device.size()
     }
 
-    fn read8(&mut self, offset: u32) -> Option<u8> {
-        self.device.read8(offset)
+    fn read8(&mut self, address: u32) -> Option<u8> {
+        self.device.read8(self.offset(address))
     }
 
-    fn write8(&mut self, offset: u32, value: u8) -> Option<()> {
-        self.device.write8(offset, value)
+    fn write8(&mut self, address: u32, value: u8) -> Option<()> {
+        self.device.write8(self.offset(address), value)
     }
 
     fn interrupt_asserted(&self) -> bool {
@@ -87,8 +87,8 @@ impl Lifecycle for MappedDevice {
 impl std::fmt::Debug for MappedDevice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MappedDevice")
-            .field("base", &self.base)
-            .field("end", &self.end)
+            .field("base", &format_args!("0x{:08X}", self.base))
+            .field("end", &format_args!("0x{:08X}", self.end))
             .field("device", &"<bus device>")
             .finish()
     }

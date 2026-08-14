@@ -1,0 +1,152 @@
+# A NOTE ON FORMATTING
+
+x.n     n denotes how many bits x uses
+u = unsigned
+s = signed
+r = register
+[....] = bits
+
+# REGISTERS
+r0-15
+zero = r0
+fp   = r13
+sp   = r14
+lr   = r15
+
+# SYSTEM / CONTROL  opcode = 0.6
+NOP                     00 00 00 00         0.6  0.6  0.20
+HALT                    00 10 00 00         0.6  1.6  0.20
+TRAP payload            00 2u uu 00         0.6  2.6  payload.12  0.4  0.4
+SYSCALL                 00 30 00 00         0.6  3.6  0.20
+IRET                    00 40 00 00         0.6  4.6  0.20
+EI                      00 50 00 00         0.6  5.6  0.20
+DI                      00 60 00 00         0.6  6.6  0.20
+RDPC rd                 00 70 00 r0         0.6  7.6  0.12  rd.4   0.4
+MRS rd, rs              00 80 00 rr         0.6  8.6  0.12  rd.4  rs.4
+MSR rd, rs              00 90 00 rr         0.6  9.6  0.12  rd.4  rs.4
+
+# REGISTER ALU  opcode = 1.6  format = R
+ADD rd, ra, rb          04 00 0r rr         1.6  0.14  rd.4  ra.4  rb.4
+SUB rd, ra, rb          04 00 1r rr         1.6  1.14  rd.4  ra.4  rb.4
+AND rd, ra, rb          04 00 2r rr         1.6  2.14  rd.4  ra.4  rb.4
+OR  rd, ra, rb          04 00 3r rr         1.6  3.14  rd.4  ra.4  rb.4
+XOR rd, ra, rb          04 00 4r rr         1.6  4.14  rd.4  ra.4  rb.4
+NOT rd, ra              04 00 5r r0         1.6  5.14  rd.4  ra.4   0.4
+NEG rd, ra              04 00 6r r0         1.6  6.14  rd.4  ra.4   0.4
+CMP ra, rb              04 00 70 rr         1.6  7.14   0.4  ra.4  rb.4
+
+# IMMEDIATE ARITHMETIC / COMPARE  opcode = 2.6  format = I
+ADDI rd, ra, sext16     08 ss ss rr         2.6  0.2  sext.16  rd.4  ra.4
+SUBI rd, ra, sext16     09 ss ss rr         2.6  1.2  sext.16  rd.4  ra.4
+CMPI ra, simm16         0A ss ss 0r         2.6  2.2  sext.16   0.4  ra.4
+
+# IMMEDIATE LOGICAL  opcode = 3.6  format = I
+ANDI rd, ra, imm16      0C uu uu rr         3.6 0.2 imm16.16 rd.4 ra.4
+ORI  rd, ra, imm16      0D uu uu rr         3.6 1.2 imm16.16 rd.4 ra.4
+XORI rd, ra, imm16      0E uu uu rr         3.6 2.2 imm16.16 rd.4 ra.4
+
+# REGISTER SHIFTS  opcode = 4.6  format = R
+SHL rd, ra, rb          10 00 0r rr         4.6 0.14 rd.4 ra.4 rb.4
+SHR rd, ra, rb          10 00 1r rr         4.6 1.14 rd.4 ra.4 rb.4
+SAR rd, ra, rb          10 00 2r rr         4.6 2.14 rd.4 ra.4 rb.4
+
+# IMMEDIATE SHIFTS  opcode = 5.6  format = I
+SHLI rd, ra, imm16      14 uu uu rr         5.6 0.2 imm16.16 rd.4 ra.4
+SHRI rd, ra, imm16      15 uu uu rr         5.6 1.2 imm16.16 rd.4 ra.4
+SARI rd, ra, imm16      16 uu uu rr         5.6 2.2 imm16.16 rd.4 ra.4
+
+# BIT IMMEDIATE  opcode = 6.6  format = I
+BTST ra, imm16          18 uu uu 0r         6.6 0.2 imm16.16 0.4 ra.4
+BSET rd, ra, imm16      19 uu uu rr         6.6 1.2 imm16.16 rd.4 ra.4
+BCLR rd, ra, imm16      1A uu uu rr         6.6 2.2 imm16.16 rd.4 ra.4
+BTGL rd, ra, imm16      1B uu uu rr         6.6 3.2 imm16.16 rd.4 ra.4
+
+# MULTIPLY / DIVIDE  opcode = 7.6  format = R
+MUL  rd, ra, rb         1C 00 0r rr         7.6 0.14 rd.4 ra.4 rb.4
+MULU rd, ra, rb         1C 00 1r rr         7.6 1.14 rd.4 ra.4 rb.4
+DIV  rd, ra, rb         1C 00 2r rr         7.6 2.14 rd.4 ra.4 rb.4
+DIVU rd, ra, rb         1C 00 3r rr         7.6 3.14 rd.4 ra.4 rb.4
+
+# CONSTANT CONSTRUCTION  opcode = 8.6  format = U
+LUI rd, ext16           20 0u uu ur         8.6 0.6 imm16.16 rd.4
+LLI rd, imm16           20 1u uu ur         8.6 1.6 imm16.16 rd.4
+LHI rd, ext16           20 2u uu ur         8.6 2.6 imm16.16 rd.4
+
+# LOAD  opcode = 9.6  format = M
+LBU rd, [base+sext15]   24 [0sss]s ss rr      9.6 0.1 0.2 sext15.15 rd.4 base.4
+LB  rd, [base+sext15]   26 [0sss]s ss rr      9.6 1.1 0.2 sext15.15 rd.4 base.4
+LHU rd, [base+sext15]   24 [1sss]s ss rr      9.6 0.1 1.2 sext15.15 rd.4 base.4
+LH  rd, [base+sext15]   26 [1sss]s ss rr      9.6 1.1 1.2 sext15.15 rd.4 base.4
+LW  rd, [base+sext15]   25 [0sss]s ss rr      9.6 0.1 2.2 sext15.15 rd.4 base.4
+
+# STORE  opcode = A.6  format = M
+SB rs, [base+sext15]    28 [0sss]s ss rr      A.6 0.1 0.2 sext15.15 rs.4 base.4
+SH rs, [base+sext15]    28 [1sss]s ss rr      A.6 0.1 1.2 sext15.15 rs.4 base.4
+SW rs, [base+sext15]    29 [0sss]s ss rr      A.6 0.1 2.2 sext15.15 rs.4 base.4
+
+# FLAG BRANCH  opcode = B.6  format = BF
+BEQ  sext22             2C [00ss]s ss ss     B.6 0.4 simm22.22
+BNE  sext22             2C [01ss]s ss ss     B.6 1.4 simm22.22
+BLT  sext22             2C [10ss]s ss ss     B.6 2.4 simm22.22
+BLE  sext22             2C [11ss]s ss ss     B.6 3.4 simm22.22
+BGT  sext22             2D [00ss]s ss ss     B.6 4.4 simm22.22
+BGE  sext22             2D [01ss]s ss ss     B.6 5.4 simm22.22
+BLTU sext22             2D [10ss]s ss ss     B.6 6.4 simm22.22
+BLEU sext22             2D [11ss]s ss ss     B.6 7.4 simm22.22
+BGTU sext22             2E [00ss]s ss ss     B.6 8.4 simm22.22
+BGEU sext22             2E [01ss]s ss ss     B.6 9.4 simm22.22
+BCS  sext22             2E [10ss]s ss ss     B.6 A.4 simm22.22
+BCC  sext22             2E [11ss]s ss ss     B.6 B.4 simm22.22
+BVS  sext22             2F [00ss]s ss ss     B.6 C.4 simm22.22
+BVC  sext22             2F [01ss]s ss ss     B.6 D.4 simm22.22
+BES  sext22             2F [10ss]s ss ss     B.6 E.4 simm22.22
+BEC  sext22             2F [11ss]s ss ss     B.6 F.4 simm22.22
+
+# REGISTER BRANCH  opcode = C.6  format = BC
+BREQ  ra, rb, sext      30 [00ss]s ss rr     C.6 0.4 sext14.14 ra.4 rb.4
+BRNE  ra, rb, sext      30 [01ss]s ss rr     C.6 1.4 sext14.14 ra.4 rb.4
+BRLT  ra, rb, sext      30 [10ss]s ss rr     C.6 2.4 sext14.14 ra.4 rb.4
+BRLE  ra, rb, sext      30 [11ss]s ss rr     C.6 3.4 sext14.14 ra.4 rb.4
+BRGT  ra, rb, sext      31 [00ss]s ss rr     C.6 4.4 sext14.14 ra.4 rb.4
+BRGE  ra, rb, sext      31 [01ss]s ss rr     C.6 5.4 sext14.14 ra.4 rb.4
+BRLTU ra, rb, sext      31 [10ss]s ss rr     C.6 6.4 sext14.14 ra.4 rb.4
+BRLEU ra, rb, sext      31 [11ss]s ss rr     C.6 7.4 sext14.14 ra.4 rb.4
+BRGTU ra, rb, sext      32 [00ss]s ss rr     C.6 8.4 sext14.14 ra.4 rb.4
+BRGEU ra, rb, sext      32 [01ss]s ss rr     C.6 9.4 sext14.14 ra.4 rb.4
+BRCS  ra, rb, sext      32 [10ss]s ss rr     C.6 A.4 sext14.14 ra.4 rb.4
+BRCC  ra, rb, sext      32 [11ss]s ss rr     C.6 B.4 sext14.14 ra.4 rb.4
+BRVS  ra, rb, sext      33 [00ss]s ss rr     C.6 C.4 sext14.14 ra.4 rb.4
+BRVC  ra, rb, sext      33 [01ss]s ss rr     C.6 D.4 sext14.14 ra.4 rb.4
+BRES  ra, rb, sext      33 [10ss]s ss rr     C.6 E.4 sext14.14 ra.4 rb.4
+BREC  ra, rb, sext      33 [11ss]s ss rr     C.6 F.4 sext14.14 ra.4 rb.4
+
+# PC-RELATIVE JUMP / CALL
+JMP sext26              3[01ss] ss ss ss     D.6 sext26.26
+JAL sext26              3[10ss] ss ss ss     E.6 sext26.26
+
+# REGISTER JUMP / CALL  opcode = F.6  format = JR
+JR target               3C 00 00 0r          F.6 0.18 0.4 target.4
+JALR rd, target         3C 00 01 rr          F.6 1.18 rd.4 target.4
+
+# PSEUDO-COMMANDS
+
+LI rd, imm32        LHI rd, imm32[31:16]
+                    LLI rd, imm32[15:0]
+
+LA rd, label        LI rd, address(label)
+
+B label             JMP simm26(label)
+
+CALL label          JAL simm26(label)
+
+.byte x             emit x.8
+
+.word x             emit x.32 big-endian
+
+.asciz "text"       emit text bytes followed by 00.8
+
+.org addr           set/pad output address
+
+NOTE
+
+Branch/jump offsets are relative to the PC value at execute time. In the current emulator, PC has already advanced past the fetched instruction before execute.
