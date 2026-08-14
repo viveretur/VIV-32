@@ -1,5 +1,6 @@
+use viv32_isa::spec::gpr;
+
 use crate::Lifecycle;
-use crate::isa::generated::gpr;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GprFile {

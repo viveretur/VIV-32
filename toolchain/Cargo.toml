@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/viv32-isa",
+    "crates/viv32-asm",
+    "crates/viv32-dis",
+    "crates/viv32-ld",
+]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT-0"
+authors = ["Viveretur"]
+repository = ""
+readme = "README.md"
+
+[workspace.dependencies]
+viv32-isa = { path = "crates/viv32-isa" }
+
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+thiserror = "1"

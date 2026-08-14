@@ -10,15 +10,13 @@
 //! behaviour.
 mod cpu;
 mod creg_file;
-mod decode;
 mod exception_cause;
 mod gpr;
 mod pc;
 mod status;
 
 pub use cpu::Cpu;
-pub use creg_file::{Creg, CregFile};
-pub use decode::{DecodeError, DecodedInstruction, decode};
+pub use creg_file::CregFile;
 use exception_cause::ExceptionCause;
 pub use gpr::GprFile;
 pub use pc::ProgramCounter;

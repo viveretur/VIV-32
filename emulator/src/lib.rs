@@ -1,5 +1,4 @@
 mod cpu;
-mod isa;
 mod lifecycle;
 mod machine;
 mod platform;

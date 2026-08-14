@@ -15,7 +15,7 @@ check-isa:
     cd {{ROOT}} && python3 scripts/check-isa.py spec/isa/viv32-isa.yaml
 
 gen-isa-rust:
-    cd {{ROOT}} && python3 scripts/gen-isa-rust.py spec/isa/viv32-isa.yaml emulator/src/isa/generated.rs
+    cd {{ROOT}} && python3 scripts/gen-isa-rust.py spec/isa/viv32-isa.yaml toolchain/crates/viv32-isa/src/spec.rs
 
 check-emulator:
 	cd {{ROOT}}/emulator && cargo check

@@ -4,10 +4,10 @@
 //! instance. Construction loads the host-side machine image; `reset` starts the
 //! architectural machine; `tick` advances execution by one CPU tick.
 use crate::{
-    Cpu, Lifecycle, SystemBus, SystemBusError,
+    Cpu, Lifecycle, SystemBus,
     platform::{
-        Clock, Ram, Serial, SerialSink, SerialSource, StdinSerialSource, StdoutSerialSink, Timer,
-        VecSerialSink, VecSerialSource,
+        Clock, Ram, Serial, SerialSink, SerialSource, StdoutSerialSink, Timer, VecSerialSink,
+        VecSerialSource,
     },
 };
 

@@ -1,117 +1,7 @@
-use super::creg_file::Creg;
-
-use crate::isa::generated::{self, opcode};
-
-#[rustfmt::skip]
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum DecodedInstruction {
-    // Control/X-type
-    Nop,
-    Halt,
-    SoftwareTrap { imm: i32 },
-    SystemCall,
-    IRet,
-    EI,
-    DI,
-    RdPc { rd: u8 },
-    Mrs { creg4: Creg, rd: u8 },
-    Msr { creg4: Creg, rs: u8 },
-
-    // Register ALU/R-type
-    Add { rd: u8, ra: u8, rb: u8 },
-    Sub { rd: u8, ra: u8, rb: u8 },
-    And { rd: u8, ra: u8, rb: u8 },
-    Or { rd: u8, ra: u8, rb: u8 },
-    Xor { rd: u8, ra: u8, rb: u8 },
-    Not { rd: u8, ra: u8 },
-    Neg { rd: u8, ra: u8 },
-    Cmp { ra: u8, rb: u8 },
-
-    // Immediate Arithmetic and Compare/I-type
-    Addi { rd: u8, ra: u8, imm: u32 },
-    Subi { rd: u8, ra: u8, imm: u32 },
-    Cmpi { ra: u8, imm: u32 },
-
-    // Immediate logical/I-type
-    Andi { rd: u8, ra: u8, imm: u32 },
-    Ori { rd: u8, ra: u8, imm: u32 },
-    Xori { rd: u8, ra: u8, imm: u32 },
-
-    // Register shifts/R-type
-    Shl { rd: u8, ra: u8, rb: u8 },
-    Shr { rd: u8, ra: u8, rb: u8 },
-    Sar { rd: u8, ra: u8, rb: u8 },
-
-    // Immediate shifts/I-type
-    Shli { rd: u8, ra: u8, imm: u8 },
-    Shri { rd: u8, ra: u8, imm: u8 },
-    Sari { rd: u8, ra: u8, imm: u8 },
-
-    // Bit immediate/I-type
-    Btst { ra: u8, imm: u8 },
-    Bset { rd: u8, ra: u8, imm: u8 },
-    Bclr { rd: u8, ra: u8, imm: u8 },
-    Btgl { rd: u8, ra: u8, imm: u8 },
-    
-    // Multiply/Divide/R2-type
-    Mul { rd0: u8, rd1: u8, ra: u8, rb: u8 },
-    Mulu { rd0: u8, rd1: u8, ra: u8, rb: u8 },
-    Div { rd0: u8, rd1: u8, ra: u8, rb: u8 },
-    Divu { rd0: u8, rd1: u8, ra: u8, rb: u8 },
-
-    // Constant construction/U-type
-    Lui { rd: u8, imm16: u16 },
-    Lli { rd: u8, imm16: u16 },
-    Lhi { rd: u8, imm16: u16 },
-
-    // Load/Store/M-type
-    Lb { rd: u8, base: u8, offset: i32 },
-    Lbu { rd: u8, base: u8, offset: i32 },
-    Lh { rd: u8, base: u8, offset: i32 },
-    Lhu { rd: u8, base: u8, offset: i32 },
-    Lw { rd: u8, base: u8, offset: i32 },
-    Sb { rs: u8, base: u8, offset: i32 },
-    Sh { rs: u8, base: u8, offset: i32 },
-    Sw { rs: u8, base: u8, offset: i32 },
-
-    // Flag branch/BF-type
-    BfEq { offset: i32 },
-    BfNe { offset: i32 },
-    BfLt { offset: i32 },
-    BfLe { offset: i32 },
-    BfGt { offset: i32 },
-    BfGe { offset: i32 },
-    BfLtu { offset: i32 },
-    BfLeu { offset: i32 },
-    BfGtu { offset: i32 },
-    BfGeu { offset: i32 },
-    BfCs { offset: i32 },
-    BfCc { offset: i32 },
-    BfVs { offset: i32 },
-    BfVc { offset: i32 },
-    BfEs { offset: i32 },
-    BfEc { offset: i32 },
-
-    // Register branch/BC-type
-    BEq { ra: u8, rb: u8, offset: i32 },
-    BNe { ra: u8, rb: u8, offset: i32 },
-    BLt { ra: u8, rb: u8, offset: i32 },
-    BLe { ra: u8, rb: u8, offset: i32 },
-    BGt { ra: u8, rb: u8, offset: i32 },
-    BGe { ra: u8, rb: u8, offset: i32 },
-    BLtu { ra: u8, rb: u8, offset: i32 },
-    BLeu { ra: u8, rb: u8, offset: i32 },
-    BGtu { ra: u8, rb: u8, offset: i32 },
-    BGeu { ra: u8, rb: u8, offset: i32 },
-
-    // PC-relative jump/call/J-type
-    Jmp { offset: i32 },
-    Call { offset: i32 },
-
-    // Register jump/call/JR-type
-    Jr { target: u8 },
-    Jalr { rd: u8, target: u8 },
-}
+use super::{
+    Creg, Instruction,
+    spec::{self, opcode},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecodeError {
@@ -119,8 +9,8 @@ pub enum DecodeError {
     IllegalPayload(u32),
 }
 
-pub fn decode(raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{architecture, opcode};
+pub fn decode(raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{architecture, opcode};
 
     let opcode = (raw >> architecture::OPCODE_SHIFT) & architecture::OPCODE_MASK;
 
@@ -142,8 +32,8 @@ pub fn decode(raw: u32) -> Result<DecodedInstruction, DecodeError> {
     }
 }
 
-fn decode_r(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{
+fn decode_r(opcode: u32, raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{
         format::r,
         func::{register_alu, register_shift},
     };
@@ -154,26 +44,26 @@ fn decode_r(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
     let rb = ((raw & r::RB_MASK) >> r::RB_SHIFT) as u8;
 
     match (opcode, func) {
-        (opcode::REGISTER_ALU, register_alu::ADD) => Ok(DecodedInstruction::Add { rd, ra, rb }),
-        (opcode::REGISTER_ALU, register_alu::SUB) => Ok(DecodedInstruction::Sub { rd, ra, rb }),
-        (opcode::REGISTER_ALU, register_alu::AND) => Ok(DecodedInstruction::And { rd, ra, rb }),
-        (opcode::REGISTER_ALU, register_alu::OR) => Ok(DecodedInstruction::Or { rd, ra, rb }),
-        (opcode::REGISTER_ALU, register_alu::XOR) => Ok(DecodedInstruction::Xor { rd, ra, rb }),
-        (opcode::REGISTER_ALU, register_alu::NOT) => Ok(DecodedInstruction::Not { rd, ra }),
-        (opcode::REGISTER_ALU, register_alu::NEG) => Ok(DecodedInstruction::Neg { rd, ra }),
-        (opcode::REGISTER_ALU, register_alu::CMP) => Ok(DecodedInstruction::Cmp { ra, rb }),
+        (opcode::REGISTER_ALU, register_alu::ADD) => Ok(Instruction::Add { rd, ra, rb }),
+        (opcode::REGISTER_ALU, register_alu::SUB) => Ok(Instruction::Sub { rd, ra, rb }),
+        (opcode::REGISTER_ALU, register_alu::AND) => Ok(Instruction::And { rd, ra, rb }),
+        (opcode::REGISTER_ALU, register_alu::OR) => Ok(Instruction::Or { rd, ra, rb }),
+        (opcode::REGISTER_ALU, register_alu::XOR) => Ok(Instruction::Xor { rd, ra, rb }),
+        (opcode::REGISTER_ALU, register_alu::NOT) => Ok(Instruction::Not { rd, ra }),
+        (opcode::REGISTER_ALU, register_alu::NEG) => Ok(Instruction::Neg { rd, ra }),
+        (opcode::REGISTER_ALU, register_alu::CMP) => Ok(Instruction::Cmp { ra, rb }),
 
-        (opcode::REGISTER_SHIFT, register_shift::SHL) => Ok(DecodedInstruction::Shl { rd, ra, rb }),
-        (opcode::REGISTER_SHIFT, register_shift::SHR) => Ok(DecodedInstruction::Shr { rd, ra, rb }),
-        (opcode::REGISTER_SHIFT, register_shift::SAR) => Ok(DecodedInstruction::Sar { rd, ra, rb }),
+        (opcode::REGISTER_SHIFT, register_shift::SHL) => Ok(Instruction::Shl { rd, ra, rb }),
+        (opcode::REGISTER_SHIFT, register_shift::SHR) => Ok(Instruction::Shr { rd, ra, rb }),
+        (opcode::REGISTER_SHIFT, register_shift::SAR) => Ok(Instruction::Sar { rd, ra, rb }),
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
     }
 }
 
 #[rustfmt::skip]
-fn decode_i(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{
+fn decode_i(opcode: u32, raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{
         format::i,
         mode::{bit_immediate, immediate_arithmetic_compare, immediate_logical, immediate_shift},
     };
@@ -186,54 +76,54 @@ fn decode_i(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
 
     match (opcode, mode) {
         (opcode::IMMEDIATE_ARITHMETIC_COMPARE, immediate_arithmetic_compare::ADDI) => {
-            Ok(DecodedInstruction::Addi { rd, ra, imm })
+            Ok(Instruction::Addi { rd, ra, imm })
         }
         (opcode::IMMEDIATE_ARITHMETIC_COMPARE, immediate_arithmetic_compare::SUBI) => {
-            Ok(DecodedInstruction::Subi { rd, ra, imm })
+            Ok(Instruction::Subi { rd, ra, imm })
         }
         (opcode::IMMEDIATE_ARITHMETIC_COMPARE, immediate_arithmetic_compare::CMPI) => {
-            Ok(DecodedInstruction::Cmpi { ra, imm })
+            Ok(Instruction::Cmpi { ra, imm })
         }
 
         (opcode::IMMEDIATE_LOGICAL, immediate_logical::ANDI) => {
-            Ok(DecodedInstruction::Andi { rd, ra, imm: imm16 })
+            Ok(Instruction::Andi { rd, ra, imm: imm16 })
         }
         (opcode::IMMEDIATE_LOGICAL, immediate_logical::ORI) => {
-            Ok(DecodedInstruction::Ori { rd, ra, imm: imm16 })
+            Ok(Instruction::Ori { rd, ra, imm: imm16 })
         }
         (opcode::IMMEDIATE_LOGICAL, immediate_logical::XORI) => {
-            Ok(DecodedInstruction::Xori { rd, ra, imm: imm16 })
+            Ok(Instruction::Xori { rd, ra, imm: imm16 })
         }
         
         (opcode::IMMEDIATE_SHIFT, immediate_shift::SHLI) => {
-            Ok(DecodedInstruction::Shli { rd, ra, imm: imm16 as u8 })
+            Ok(Instruction::Shli { rd, ra, imm: imm16 as u8 })
         }
         (opcode::IMMEDIATE_SHIFT, immediate_shift::SHRI) => {
-            Ok(DecodedInstruction::Shri { rd, ra, imm: imm16 as u8 })
+            Ok(Instruction::Shri { rd, ra, imm: imm16 as u8 })
         }
         (opcode::IMMEDIATE_SHIFT, immediate_shift::SARI) => {
-            Ok(DecodedInstruction::Sari { rd, ra, imm: imm16 as u8 })
+            Ok(Instruction::Sari { rd, ra, imm: imm16 as u8 })
         }
 
         (opcode::BIT_IMMEDIATE, bit_immediate::BTST) => {
-            Ok(DecodedInstruction::Btst { ra, imm: imm16 as u8 })
+            Ok(Instruction::Btst { ra, imm: imm16 as u8 })
         }
         (opcode::BIT_IMMEDIATE, bit_immediate::BSET) => {
-            Ok(DecodedInstruction::Bset { rd, ra, imm: imm16 as u8 })
+            Ok(Instruction::Bset { rd, ra, imm: imm16 as u8 })
         }
         (opcode::BIT_IMMEDIATE, bit_immediate::BCLR) => {
-            Ok(DecodedInstruction::Bclr { rd, ra, imm: imm16 as u8 })
+            Ok(Instruction::Bclr { rd, ra, imm: imm16 as u8 })
         }
         (opcode::BIT_IMMEDIATE, bit_immediate::BTGL) => {
-            Ok(DecodedInstruction::Btgl { rd, ra, imm: imm16 as u8 })
+            Ok(Instruction::Btgl { rd, ra, imm: imm16 as u8 })
         }
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
     }
 }
 
-fn decode_r2(raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{format::r2, func::multiply_divide};
+fn decode_r2(raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{format::r2, func::multiply_divide};
 
     let func = (raw & r2::FUNC_MASK) >> r2::FUNC_SHIFT;
     let rd0 = ((raw & r2::RD0_MASK) >> r2::RD0_SHIFT) as u8;
@@ -242,34 +132,34 @@ fn decode_r2(raw: u32) -> Result<DecodedInstruction, DecodeError> {
     let rb = ((raw & r2::RB_MASK) >> r2::RB_SHIFT) as u8;
 
     match func {
-        multiply_divide::MUL => Ok(DecodedInstruction::Mul { rd0, rd1, ra, rb }),
-        multiply_divide::MULU => Ok(DecodedInstruction::Mulu { rd0, rd1, ra, rb }),
-        multiply_divide::DIV => Ok(DecodedInstruction::Div { rd0, rd1, ra, rb }),
-        multiply_divide::DIVU => Ok(DecodedInstruction::Divu { rd0, rd1, ra, rb }),
+        multiply_divide::MUL => Ok(Instruction::Mul { rd0, rd1, ra, rb }),
+        multiply_divide::MULU => Ok(Instruction::Mulu { rd0, rd1, ra, rb }),
+        multiply_divide::DIV => Ok(Instruction::Div { rd0, rd1, ra, rb }),
+        multiply_divide::DIVU => Ok(Instruction::Divu { rd0, rd1, ra, rb }),
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
     }
 }
 
-fn decode_u(raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{format::u, mode::constant_construction};
+fn decode_u(raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{format::u, mode::constant_construction};
 
     let mode = (raw & u::MODE_MASK) >> u::MODE_SHIFT;
     let imm16 = ((raw & u::IMM16_MASK) >> u::IMM16_SHIFT) as u16;
     let rd = ((raw & u::RD_MASK) >> u::RD_SHIFT) as u8;
 
     match mode {
-        constant_construction::LUI => Ok(DecodedInstruction::Lui { rd, imm16 }),
-        constant_construction::LLI => Ok(DecodedInstruction::Lli { rd, imm16 }),
-        constant_construction::LHI => Ok(DecodedInstruction::Lhi { rd, imm16 }),
+        constant_construction::LUI => Ok(Instruction::Lui { rd, imm16 }),
+        constant_construction::LLI => Ok(Instruction::Lli { rd, imm16 }),
+        constant_construction::LHI => Ok(Instruction::Lhi { rd, imm16 }),
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
     }
 }
 
 #[rustfmt::skip]
-fn decode_m(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{format::m, memory_size};
+fn decode_m(opcode: u32, raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{format::m, memory_size};
 
     let sx = (raw & m::SX_MASK) >> m::SX_SHIFT;
     let size = (raw & m::SIZE_MASK) >> m::SIZE_SHIFT;
@@ -280,22 +170,22 @@ fn decode_m(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
     let base = ((raw & m::BASE_MASK) >> m::BASE_SHIFT) as u8;
 
     match (opcode, sx, size) {
-        (opcode::LOAD, 0, memory_size::BYTE) => Ok(DecodedInstruction::Lbu { rd: r, base, offset }),
-        (opcode::LOAD, 1, memory_size::BYTE) => Ok(DecodedInstruction::Lb { rd: r, base, offset }),
-        (opcode::LOAD, 0, memory_size::HALFWORD) => Ok(DecodedInstruction::Lhu { rd: r, base, offset }),
-        (opcode::LOAD, 1, memory_size::HALFWORD) => Ok(DecodedInstruction::Lh { rd: r, base, offset }),
-        (opcode::LOAD, _, memory_size::WORD) => Ok(DecodedInstruction::Lw { rd: r, base, offset }),
-        (opcode::STORE, _, memory_size::BYTE) => Ok(DecodedInstruction::Sb { rs: r, base, offset }),
-        (opcode::STORE, _, memory_size::HALFWORD) => Ok(DecodedInstruction::Sh { rs: r, base, offset }),
-        (opcode::STORE, _, memory_size::WORD) => Ok(DecodedInstruction::Sw { rs: r, base, offset }),
+        (opcode::LOAD, 0, memory_size::BYTE) => Ok(Instruction::Lbu { rd: r, base, offset }),
+        (opcode::LOAD, 1, memory_size::BYTE) => Ok(Instruction::Lb { rd: r, base, offset }),
+        (opcode::LOAD, 0, memory_size::HALFWORD) => Ok(Instruction::Lhu { rd: r, base, offset }),
+        (opcode::LOAD, 1, memory_size::HALFWORD) => Ok(Instruction::Lh { rd: r, base, offset }),
+        (opcode::LOAD, _, memory_size::WORD) => Ok(Instruction::Lw { rd: r, base, offset }),
+        (opcode::STORE, _, memory_size::BYTE) => Ok(Instruction::Sb { rs: r, base, offset }),
+        (opcode::STORE, _, memory_size::HALFWORD) => Ok(Instruction::Sh { rs: r, base, offset }),
+        (opcode::STORE, _, memory_size::WORD) => Ok(Instruction::Sw { rs: r, base, offset }),
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
     }
     
 }
 
-fn decode_bf(raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{condition, format::bf};
+fn decode_bf(raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{condition, format::bf};
 
     let cond = (raw & bf::COND_MASK) >> bf::COND_SHIFT;
     let mut offset = ((raw & bf::OFFSET22_MASK) >> bf::OFFSET22_SHIFT) as i32;
@@ -303,29 +193,29 @@ fn decode_bf(raw: u32) -> Result<DecodedInstruction, DecodeError> {
     offset = (offset << ss) >> (ss - 2); // All branch offsets are SHL2.
 
     match cond {
-        condition::EQ => Ok(DecodedInstruction::BfEq { offset }),
-        condition::NE => Ok(DecodedInstruction::BfNe { offset }),
-        condition::LT => Ok(DecodedInstruction::BfLt { offset }),
-        condition::LE => Ok(DecodedInstruction::BfLe { offset }),
-        condition::GT => Ok(DecodedInstruction::BfGt { offset }),
-        condition::GE => Ok(DecodedInstruction::BfGe { offset }),
-        condition::LTU => Ok(DecodedInstruction::BfLtu { offset }),
-        condition::LEU => Ok(DecodedInstruction::BfLeu { offset }),
-        condition::GTU => Ok(DecodedInstruction::BfGtu { offset }),
-        condition::GEU => Ok(DecodedInstruction::BfGeu { offset }),
-        condition::CS => Ok(DecodedInstruction::BfCs { offset }),
-        condition::CC => Ok(DecodedInstruction::BfCc { offset }),
-        condition::VS => Ok(DecodedInstruction::BfVs { offset }),
-        condition::VC => Ok(DecodedInstruction::BfVc { offset }),
-        condition::ES => Ok(DecodedInstruction::BfEs { offset }),
-        condition::EC => Ok(DecodedInstruction::BfEc { offset }),
+        condition::EQ => Ok(Instruction::BfEq { offset }),
+        condition::NE => Ok(Instruction::BfNe { offset }),
+        condition::LT => Ok(Instruction::BfLt { offset }),
+        condition::LE => Ok(Instruction::BfLe { offset }),
+        condition::GT => Ok(Instruction::BfGt { offset }),
+        condition::GE => Ok(Instruction::BfGe { offset }),
+        condition::LTU => Ok(Instruction::BfLtu { offset }),
+        condition::LEU => Ok(Instruction::BfLeu { offset }),
+        condition::GTU => Ok(Instruction::BfGtu { offset }),
+        condition::GEU => Ok(Instruction::BfGeu { offset }),
+        condition::CS => Ok(Instruction::BfCs { offset }),
+        condition::CC => Ok(Instruction::BfCc { offset }),
+        condition::VS => Ok(Instruction::BfVs { offset }),
+        condition::VC => Ok(Instruction::BfVc { offset }),
+        condition::ES => Ok(Instruction::BfEs { offset }),
+        condition::EC => Ok(Instruction::BfEc { offset }),
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
     }
 }
 
-fn decode_bc(raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{condition, format::bc};
+fn decode_bc(raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{condition, format::bc};
 
     let cond = (raw & bc::COND_MASK) >> bc::COND_SHIFT;
     let mut offset = ((raw & bc::OFFSET14_MASK) >> bc::OFFSET14_SHIFT) as i32;
@@ -335,53 +225,53 @@ fn decode_bc(raw: u32) -> Result<DecodedInstruction, DecodeError> {
     let rb = ((raw & bc::RB_MASK) >> bc::RB_SHIFT) as u8;
 
     match cond {
-        condition::EQ => Ok(DecodedInstruction::BEq { ra, rb, offset }),
-        condition::NE => Ok(DecodedInstruction::BNe { ra, rb, offset }),
-        condition::LT => Ok(DecodedInstruction::BLt { ra, rb, offset }),
-        condition::LE => Ok(DecodedInstruction::BLe { ra, rb, offset }),
-        condition::GT => Ok(DecodedInstruction::BGt { ra, rb, offset }),
-        condition::GE => Ok(DecodedInstruction::BGe { ra, rb, offset }),
-        condition::LTU => Ok(DecodedInstruction::BLtu { ra, rb, offset }),
-        condition::LEU => Ok(DecodedInstruction::BLeu { ra, rb, offset }),
-        condition::GTU => Ok(DecodedInstruction::BGtu { ra, rb, offset }),
-        condition::GEU => Ok(DecodedInstruction::BGeu { ra, rb, offset }),
+        condition::EQ => Ok(Instruction::BEq { ra, rb, offset }),
+        condition::NE => Ok(Instruction::BNe { ra, rb, offset }),
+        condition::LT => Ok(Instruction::BLt { ra, rb, offset }),
+        condition::LE => Ok(Instruction::BLe { ra, rb, offset }),
+        condition::GT => Ok(Instruction::BGt { ra, rb, offset }),
+        condition::GE => Ok(Instruction::BGe { ra, rb, offset }),
+        condition::LTU => Ok(Instruction::BLtu { ra, rb, offset }),
+        condition::LEU => Ok(Instruction::BLeu { ra, rb, offset }),
+        condition::GTU => Ok(Instruction::BGtu { ra, rb, offset }),
+        condition::GEU => Ok(Instruction::BGeu { ra, rb, offset }),
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
     }
 }
 
-fn decode_j(opcode: u32, raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::format::j;
+fn decode_j(opcode: u32, raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::format::j;
 
     let mut offset = ((raw & j::OFFSET26_MASK) >> j::OFFSET26_SHIFT) as i32;
     let shift = 32 - j::OFFSET26_WIDTH;
     offset = (offset << shift) >> (shift - 2); // All branch offsets are SHL2.
 
     match opcode {
-        opcode::PC_RELATIVE_JUMP => Ok(DecodedInstruction::Jmp { offset }),
-        opcode::PC_RELATIVE_CALL => Ok(DecodedInstruction::Call { offset }),
+        opcode::PC_RELATIVE_JUMP => Ok(Instruction::Jmp { offset }),
+        opcode::PC_RELATIVE_CALL => Ok(Instruction::Call { offset }),
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
     }
 }
 
-fn decode_jr(raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{format::jr, func::register_jump_call};
+fn decode_jr(raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{format::jr, func::register_jump_call};
 
     let func = (raw & jr::FUNC_MASK) >> jr::FUNC_SHIFT;
     let rd = ((raw & jr::RD_MASK) >> jr::RD_SHIFT) as u8;
     let target = ((raw & jr::TARGET_MASK) >> jr::TARGET_SHIFT) as u8;
 
     match func {
-        register_jump_call::JR => Ok(DecodedInstruction::Jr { target }),
-        register_jump_call::JALR => Ok(DecodedInstruction::Jalr { rd, target }),
+        register_jump_call::JR => Ok(Instruction::Jr { target }),
+        register_jump_call::JALR => Ok(Instruction::Jalr { rd, target }),
 
         _ => Err(DecodeError::IllegalInstruction(raw)),
     }
 }
 
-fn decode_x(raw: u32) -> Result<DecodedInstruction, DecodeError> {
-    use generated::{format::x, sysop};
+fn decode_x(raw: u32) -> Result<Instruction, DecodeError> {
+    use spec::{format::x, sysop};
 
     let sysop = (raw & x::SYSOP_MASK) >> x::SYSOP_SHIFT;
     let payload = (raw & x::PAYLOAD_MASK) >> x::PAYLOAD_SHIFT;
@@ -389,23 +279,23 @@ fn decode_x(raw: u32) -> Result<DecodedInstruction, DecodeError> {
     let rs = (raw & x::RS_MASK) >> x::RS_SHIFT;
 
     match sysop {
-        sysop::NOP => Ok(DecodedInstruction::Nop),
-        sysop::HALT => Ok(DecodedInstruction::Halt),
+        sysop::NOP => Ok(Instruction::Nop),
+        sysop::HALT => Ok(Instruction::Halt),
         sysop::TRAP => {
             let ss = 32 - x::PAYLOAD_WIDTH;
             let offset = ((payload as i32) << ss) >> (ss - 2); // Branch offsets are SHL2.
-            Ok(DecodedInstruction::SoftwareTrap { imm: offset })
+            Ok(Instruction::SoftwareTrap { imm: offset })
         }
-        sysop::SYSCALL => Ok(DecodedInstruction::SystemCall),
-        sysop::IRET => Ok(DecodedInstruction::IRet),
-        sysop::EI => Ok(DecodedInstruction::EI),
-        sysop::DI => Ok(DecodedInstruction::DI),
-        sysop::RDPC => Ok(DecodedInstruction::RdPc { rd: rd as u8 }),
-        sysop::MRS => Ok(DecodedInstruction::Mrs {
+        sysop::SYSCALL => Ok(Instruction::SystemCall),
+        sysop::IRET => Ok(Instruction::IRet),
+        sysop::EI => Ok(Instruction::EI),
+        sysop::DI => Ok(Instruction::DI),
+        sysop::RDPC => Ok(Instruction::RdPc { rd: rd as u8 }),
+        sysop::MRS => Ok(Instruction::Mrs {
             creg4: decode_creg(payload)?,
             rd: rd as u8,
         }),
-        sysop::MSR => Ok(DecodedInstruction::Msr {
+        sysop::MSR => Ok(Instruction::Msr {
             creg4: decode_creg(payload)?,
             rs: rs as u8,
         }),
@@ -415,7 +305,7 @@ fn decode_x(raw: u32) -> Result<DecodedInstruction, DecodeError> {
 }
 
 fn decode_creg(payload: u32) -> Result<Creg, DecodeError> {
-    use generated::creg;
+    use spec::creg;
 
     match payload as usize {
         creg::PC => Ok(Creg::PC),
@@ -435,7 +325,7 @@ mod tests {
     use super::*;
 
     fn opcode(value: u32) -> u32 {
-        use generated::architecture;
+        use spec::architecture;
 
         (value & architecture::OPCODE_MASK) << architecture::OPCODE_SHIFT
     }
@@ -449,7 +339,7 @@ mod tests {
     }
 
     fn enc_r(op: u32, func: u32) -> u32 {
-        use generated::format::r;
+        use spec::format::r;
 
         opcode(op)
             | field(r::FUNC_MASK, r::FUNC_SHIFT, func)
@@ -459,7 +349,7 @@ mod tests {
     }
 
     fn enc_i(op: u32, mode: u32, imm16: u16) -> u32 {
-        use generated::format::i;
+        use spec::format::i;
 
         opcode(op)
             | field(i::MODE_MASK, i::MODE_SHIFT, mode)
@@ -469,9 +359,9 @@ mod tests {
     }
 
     fn enc_r2(func: u32) -> u32 {
-        use generated::format::r2;
+        use spec::format::r2;
 
-        opcode(generated::opcode::MULTIPLY_DIVIDE)
+        opcode(spec::opcode::MULTIPLY_DIVIDE)
             | field(r2::FUNC_MASK, r2::FUNC_SHIFT, func)
             | field(r2::RD0_MASK, r2::RD0_SHIFT, 3)
             | field(r2::RD1_MASK, r2::RD1_SHIFT, 4)
@@ -480,16 +370,16 @@ mod tests {
     }
 
     fn enc_u(mode: u32, imm16: u16) -> u32 {
-        use generated::format::u;
+        use spec::format::u;
 
-        opcode(generated::opcode::CONSTANT_CONSTRUCTION)
+        opcode(spec::opcode::CONSTANT_CONSTRUCTION)
             | field(u::MODE_MASK, u::MODE_SHIFT, mode)
             | field(u::RD_MASK, u::RD_SHIFT, 3)
             | field(u::IMM16_MASK, u::IMM16_SHIFT, imm16 as u32)
     }
 
     fn enc_m(op: u32, sx: u32, size: u32, offset: i16) -> u32 {
-        use generated::format::m;
+        use spec::format::m;
 
         let offset15 = signed_field(offset as i32, m::OFFSET15_WIDTH);
 
@@ -502,9 +392,9 @@ mod tests {
     }
 
     fn enc_bf(cond: u32, offset: i32) -> u32 {
-        use generated::format::bf;
+        use spec::format::bf;
 
-        opcode(generated::opcode::FLAG_BRANCH)
+        opcode(spec::opcode::FLAG_BRANCH)
             | field(bf::COND_MASK, bf::COND_SHIFT, cond)
             | field(
                 bf::OFFSET22_MASK,
@@ -514,9 +404,9 @@ mod tests {
     }
 
     fn enc_bc(cond: u32, offset: i32) -> u32 {
-        use generated::format::bc;
+        use spec::format::bc;
 
-        opcode(generated::opcode::REGISTER_BRANCH)
+        opcode(spec::opcode::REGISTER_BRANCH)
             | field(bc::COND_MASK, bc::COND_SHIFT, cond)
             | field(bc::RA_MASK, bc::RA_SHIFT, 3)
             | field(bc::RB_MASK, bc::RB_SHIFT, 4)
@@ -528,7 +418,7 @@ mod tests {
     }
 
     fn enc_j(op: u32, offset: i32) -> u32 {
-        use generated::format::j;
+        use spec::format::j;
 
         opcode(op)
             | field(
@@ -539,18 +429,18 @@ mod tests {
     }
 
     fn enc_jr(func: u32) -> u32 {
-        use generated::format::jr;
+        use spec::format::jr;
 
-        opcode(generated::opcode::REGISTER_JUMP_CALL)
+        opcode(spec::opcode::REGISTER_JUMP_CALL)
             | field(jr::FUNC_MASK, jr::FUNC_SHIFT, func)
             | field(jr::RD_MASK, jr::RD_SHIFT, 3)
             | field(jr::TARGET_MASK, jr::TARGET_SHIFT, 4)
     }
 
     fn enc_x(sysop: u32, payload: u32, rd: u32, rs: u32) -> u32 {
-        use generated::format::x;
+        use spec::format::x;
 
-        opcode(generated::opcode::SYSTEM_CONTROL)
+        opcode(spec::opcode::SYSTEM_CONTROL)
             | field(x::SYSOP_MASK, x::SYSOP_SHIFT, sysop)
             | field(x::PAYLOAD_MASK, x::PAYLOAD_SHIFT, payload)
             | field(x::RD_MASK, x::RD_SHIFT, rd)
@@ -572,53 +462,45 @@ mod tests {
 
     decode_case!(
         decodes_nop,
-        enc_x(generated::sysop::NOP, 0, 0, 0),
-        DecodedInstruction::Nop
+        enc_x(spec::sysop::NOP, 0, 0, 0),
+        Instruction::Nop
     );
     decode_case!(
         decodes_halt,
-        enc_x(generated::sysop::HALT, 0, 0, 0),
-        DecodedInstruction::Halt
+        enc_x(spec::sysop::HALT, 0, 0, 0),
+        Instruction::Halt
     );
 
     decode_case!(
         decodes_software_trap,
-        enc_x(generated::sysop::TRAP, 0x7A9, 0, 0),
-        DecodedInstruction::SoftwareTrap { imm: 0x1EA4 }
+        enc_x(spec::sysop::TRAP, 0x7A9, 0, 0),
+        Instruction::SoftwareTrap { imm: 0x1EA4 }
     );
 
     decode_case!(
         decodes_system_call,
-        enc_x(generated::sysop::SYSCALL, 0, 0, 0),
-        DecodedInstruction::SystemCall
+        enc_x(spec::sysop::SYSCALL, 0, 0, 0),
+        Instruction::SystemCall
     );
 
     decode_case!(
         decodes_iret,
-        enc_x(generated::sysop::IRET, 0, 0, 0),
-        DecodedInstruction::IRet
+        enc_x(spec::sysop::IRET, 0, 0, 0),
+        Instruction::IRet
     );
-    decode_case!(
-        decodes_ei,
-        enc_x(generated::sysop::EI, 0, 0, 0),
-        DecodedInstruction::EI
-    );
-    decode_case!(
-        decodes_di,
-        enc_x(generated::sysop::DI, 0, 0, 0),
-        DecodedInstruction::DI
-    );
+    decode_case!(decodes_ei, enc_x(spec::sysop::EI, 0, 0, 0), Instruction::EI);
+    decode_case!(decodes_di, enc_x(spec::sysop::DI, 0, 0, 0), Instruction::DI);
 
     decode_case!(
         decodes_rdpc,
-        enc_x(generated::sysop::RDPC, 0, 3, 0),
-        DecodedInstruction::RdPc { rd: 3 }
+        enc_x(spec::sysop::RDPC, 0, 3, 0),
+        Instruction::RdPc { rd: 3 }
     );
 
     decode_case!(
         decodes_mrs_pc,
-        enc_x(generated::sysop::MRS, generated::creg::PC as u32, 3, 0),
-        DecodedInstruction::Mrs {
+        enc_x(spec::sysop::MRS, spec::creg::PC as u32, 3, 0),
+        Instruction::Mrs {
             creg4: Creg::PC,
             rd: 3,
         }
@@ -626,8 +508,8 @@ mod tests {
 
     decode_case!(
         decodes_msr_sr,
-        enc_x(generated::sysop::MSR, generated::creg::SR as u32, 0, 4),
-        DecodedInstruction::Msr {
+        enc_x(spec::sysop::MSR, spec::creg::SR as u32, 0, 4),
+        Instruction::Msr {
             creg4: Creg::SR,
             rs: 4,
         }
@@ -639,11 +521,8 @@ mod tests {
 
     decode_case!(
         decodes_add,
-        enc_r(
-            generated::opcode::REGISTER_ALU,
-            generated::func::register_alu::ADD
-        ),
-        DecodedInstruction::Add {
+        enc_r(spec::opcode::REGISTER_ALU, spec::func::register_alu::ADD),
+        Instruction::Add {
             rd: 3,
             ra: 4,
             rb: 5
@@ -652,11 +531,8 @@ mod tests {
 
     decode_case!(
         decodes_sub,
-        enc_r(
-            generated::opcode::REGISTER_ALU,
-            generated::func::register_alu::SUB
-        ),
-        DecodedInstruction::Sub {
+        enc_r(spec::opcode::REGISTER_ALU, spec::func::register_alu::SUB),
+        Instruction::Sub {
             rd: 3,
             ra: 4,
             rb: 5
@@ -665,11 +541,8 @@ mod tests {
 
     decode_case!(
         decodes_and,
-        enc_r(
-            generated::opcode::REGISTER_ALU,
-            generated::func::register_alu::AND
-        ),
-        DecodedInstruction::And {
+        enc_r(spec::opcode::REGISTER_ALU, spec::func::register_alu::AND),
+        Instruction::And {
             rd: 3,
             ra: 4,
             rb: 5
@@ -678,11 +551,8 @@ mod tests {
 
     decode_case!(
         decodes_or,
-        enc_r(
-            generated::opcode::REGISTER_ALU,
-            generated::func::register_alu::OR
-        ),
-        DecodedInstruction::Or {
+        enc_r(spec::opcode::REGISTER_ALU, spec::func::register_alu::OR),
+        Instruction::Or {
             rd: 3,
             ra: 4,
             rb: 5
@@ -691,11 +561,8 @@ mod tests {
 
     decode_case!(
         decodes_xor,
-        enc_r(
-            generated::opcode::REGISTER_ALU,
-            generated::func::register_alu::XOR
-        ),
-        DecodedInstruction::Xor {
+        enc_r(spec::opcode::REGISTER_ALU, spec::func::register_alu::XOR),
+        Instruction::Xor {
             rd: 3,
             ra: 4,
             rb: 5
@@ -704,29 +571,20 @@ mod tests {
 
     decode_case!(
         decodes_not,
-        enc_r(
-            generated::opcode::REGISTER_ALU,
-            generated::func::register_alu::NOT
-        ),
-        DecodedInstruction::Not { rd: 3, ra: 4 }
+        enc_r(spec::opcode::REGISTER_ALU, spec::func::register_alu::NOT),
+        Instruction::Not { rd: 3, ra: 4 }
     );
 
     decode_case!(
         decodes_neg,
-        enc_r(
-            generated::opcode::REGISTER_ALU,
-            generated::func::register_alu::NEG
-        ),
-        DecodedInstruction::Neg { rd: 3, ra: 4 }
+        enc_r(spec::opcode::REGISTER_ALU, spec::func::register_alu::NEG),
+        Instruction::Neg { rd: 3, ra: 4 }
     );
 
     decode_case!(
         decodes_cmp,
-        enc_r(
-            generated::opcode::REGISTER_ALU,
-            generated::func::register_alu::CMP
-        ),
-        DecodedInstruction::Cmp { ra: 4, rb: 5 }
+        enc_r(spec::opcode::REGISTER_ALU, spec::func::register_alu::CMP),
+        Instruction::Cmp { ra: 4, rb: 5 }
     );
 
     // ---------------------------------------------------------------------
@@ -736,10 +594,10 @@ mod tests {
     decode_case!(
         decodes_shl,
         enc_r(
-            generated::opcode::REGISTER_SHIFT,
-            generated::func::register_shift::SHL
+            spec::opcode::REGISTER_SHIFT,
+            spec::func::register_shift::SHL
         ),
-        DecodedInstruction::Shl {
+        Instruction::Shl {
             rd: 3,
             ra: 4,
             rb: 5
@@ -749,10 +607,10 @@ mod tests {
     decode_case!(
         decodes_shr,
         enc_r(
-            generated::opcode::REGISTER_SHIFT,
-            generated::func::register_shift::SHR
+            spec::opcode::REGISTER_SHIFT,
+            spec::func::register_shift::SHR
         ),
-        DecodedInstruction::Shr {
+        Instruction::Shr {
             rd: 3,
             ra: 4,
             rb: 5
@@ -762,10 +620,10 @@ mod tests {
     decode_case!(
         decodes_sar,
         enc_r(
-            generated::opcode::REGISTER_SHIFT,
-            generated::func::register_shift::SAR
+            spec::opcode::REGISTER_SHIFT,
+            spec::func::register_shift::SAR
         ),
-        DecodedInstruction::Sar {
+        Instruction::Sar {
             rd: 3,
             ra: 4,
             rb: 5
@@ -779,11 +637,11 @@ mod tests {
     decode_case!(
         decodes_addi_positive,
         enc_i(
-            generated::opcode::IMMEDIATE_ARITHMETIC_COMPARE,
-            generated::mode::immediate_arithmetic_compare::ADDI,
+            spec::opcode::IMMEDIATE_ARITHMETIC_COMPARE,
+            spec::mode::immediate_arithmetic_compare::ADDI,
             0x1234,
         ),
-        DecodedInstruction::Addi {
+        Instruction::Addi {
             rd: 3,
             ra: 4,
             imm: 0x1234
@@ -793,11 +651,11 @@ mod tests {
     decode_case!(
         decodes_addi_negative,
         enc_i(
-            generated::opcode::IMMEDIATE_ARITHMETIC_COMPARE,
-            generated::mode::immediate_arithmetic_compare::ADDI,
+            spec::opcode::IMMEDIATE_ARITHMETIC_COMPARE,
+            spec::mode::immediate_arithmetic_compare::ADDI,
             0xFFFE,
         ),
-        DecodedInstruction::Addi {
+        Instruction::Addi {
             rd: 3,
             ra: 4,
             imm: -2i32 as u32
@@ -807,11 +665,11 @@ mod tests {
     decode_case!(
         decodes_subi_negative,
         enc_i(
-            generated::opcode::IMMEDIATE_ARITHMETIC_COMPARE,
-            generated::mode::immediate_arithmetic_compare::SUBI,
+            spec::opcode::IMMEDIATE_ARITHMETIC_COMPARE,
+            spec::mode::immediate_arithmetic_compare::SUBI,
             0x8000,
         ),
-        DecodedInstruction::Subi {
+        Instruction::Subi {
             rd: 3,
             ra: 4,
             imm: -32768i32 as u32
@@ -821,11 +679,11 @@ mod tests {
     decode_case!(
         decodes_cmpi_negative,
         enc_i(
-            generated::opcode::IMMEDIATE_ARITHMETIC_COMPARE,
-            generated::mode::immediate_arithmetic_compare::CMPI,
+            spec::opcode::IMMEDIATE_ARITHMETIC_COMPARE,
+            spec::mode::immediate_arithmetic_compare::CMPI,
             0xFFFF,
         ),
-        DecodedInstruction::Cmpi {
+        Instruction::Cmpi {
             ra: 4,
             imm: -1i32 as u32
         }
@@ -838,11 +696,11 @@ mod tests {
     decode_case!(
         decodes_andi,
         enc_i(
-            generated::opcode::IMMEDIATE_LOGICAL,
-            generated::mode::immediate_logical::ANDI,
+            spec::opcode::IMMEDIATE_LOGICAL,
+            spec::mode::immediate_logical::ANDI,
             0xF0F0,
         ),
-        DecodedInstruction::Andi {
+        Instruction::Andi {
             rd: 3,
             ra: 4,
             imm: 0xF0F0
@@ -852,11 +710,11 @@ mod tests {
     decode_case!(
         decodes_ori,
         enc_i(
-            generated::opcode::IMMEDIATE_LOGICAL,
-            generated::mode::immediate_logical::ORI,
+            spec::opcode::IMMEDIATE_LOGICAL,
+            spec::mode::immediate_logical::ORI,
             0x00FF,
         ),
-        DecodedInstruction::Ori {
+        Instruction::Ori {
             rd: 3,
             ra: 4,
             imm: 0x00FF
@@ -866,11 +724,11 @@ mod tests {
     decode_case!(
         decodes_xori,
         enc_i(
-            generated::opcode::IMMEDIATE_LOGICAL,
-            generated::mode::immediate_logical::XORI,
+            spec::opcode::IMMEDIATE_LOGICAL,
+            spec::mode::immediate_logical::XORI,
             0xAAAA,
         ),
-        DecodedInstruction::Xori {
+        Instruction::Xori {
             rd: 3,
             ra: 4,
             imm: 0xAAAA
@@ -884,11 +742,11 @@ mod tests {
     decode_case!(
         decodes_shli,
         enc_i(
-            generated::opcode::IMMEDIATE_SHIFT,
-            generated::mode::immediate_shift::SHLI,
+            spec::opcode::IMMEDIATE_SHIFT,
+            spec::mode::immediate_shift::SHLI,
             7,
         ),
-        DecodedInstruction::Shli {
+        Instruction::Shli {
             rd: 3,
             ra: 4,
             imm: 7
@@ -898,11 +756,11 @@ mod tests {
     decode_case!(
         decodes_shri,
         enc_i(
-            generated::opcode::IMMEDIATE_SHIFT,
-            generated::mode::immediate_shift::SHRI,
+            spec::opcode::IMMEDIATE_SHIFT,
+            spec::mode::immediate_shift::SHRI,
             8,
         ),
-        DecodedInstruction::Shri {
+        Instruction::Shri {
             rd: 3,
             ra: 4,
             imm: 8
@@ -912,11 +770,11 @@ mod tests {
     decode_case!(
         decodes_sari,
         enc_i(
-            generated::opcode::IMMEDIATE_SHIFT,
-            generated::mode::immediate_shift::SARI,
+            spec::opcode::IMMEDIATE_SHIFT,
+            spec::mode::immediate_shift::SARI,
             9,
         ),
-        DecodedInstruction::Sari {
+        Instruction::Sari {
             rd: 3,
             ra: 4,
             imm: 9
@@ -930,21 +788,21 @@ mod tests {
     decode_case!(
         decodes_btst,
         enc_i(
-            generated::opcode::BIT_IMMEDIATE,
-            generated::mode::bit_immediate::BTST,
+            spec::opcode::BIT_IMMEDIATE,
+            spec::mode::bit_immediate::BTST,
             1
         ),
-        DecodedInstruction::Btst { ra: 4, imm: 1 }
+        Instruction::Btst { ra: 4, imm: 1 }
     );
 
     decode_case!(
         decodes_bset,
         enc_i(
-            generated::opcode::BIT_IMMEDIATE,
-            generated::mode::bit_immediate::BSET,
+            spec::opcode::BIT_IMMEDIATE,
+            spec::mode::bit_immediate::BSET,
             2
         ),
-        DecodedInstruction::Bset {
+        Instruction::Bset {
             rd: 3,
             ra: 4,
             imm: 2
@@ -954,11 +812,11 @@ mod tests {
     decode_case!(
         decodes_bclr,
         enc_i(
-            generated::opcode::BIT_IMMEDIATE,
-            generated::mode::bit_immediate::BCLR,
+            spec::opcode::BIT_IMMEDIATE,
+            spec::mode::bit_immediate::BCLR,
             3
         ),
-        DecodedInstruction::Bclr {
+        Instruction::Bclr {
             rd: 3,
             ra: 4,
             imm: 3
@@ -968,11 +826,11 @@ mod tests {
     decode_case!(
         decodes_btgl,
         enc_i(
-            generated::opcode::BIT_IMMEDIATE,
-            generated::mode::bit_immediate::BTGL,
+            spec::opcode::BIT_IMMEDIATE,
+            spec::mode::bit_immediate::BTGL,
             4
         ),
-        DecodedInstruction::Btgl {
+        Instruction::Btgl {
             rd: 3,
             ra: 4,
             imm: 4
@@ -985,8 +843,8 @@ mod tests {
 
     decode_case!(
         decodes_mul,
-        enc_r2(generated::func::multiply_divide::MUL),
-        DecodedInstruction::Mul {
+        enc_r2(spec::func::multiply_divide::MUL),
+        Instruction::Mul {
             rd0: 3,
             rd1: 4,
             ra: 5,
@@ -996,8 +854,8 @@ mod tests {
 
     decode_case!(
         decodes_mulu,
-        enc_r2(generated::func::multiply_divide::MULU),
-        DecodedInstruction::Mulu {
+        enc_r2(spec::func::multiply_divide::MULU),
+        Instruction::Mulu {
             rd0: 3,
             rd1: 4,
             ra: 5,
@@ -1007,8 +865,8 @@ mod tests {
 
     decode_case!(
         decodes_div,
-        enc_r2(generated::func::multiply_divide::DIV),
-        DecodedInstruction::Div {
+        enc_r2(spec::func::multiply_divide::DIV),
+        Instruction::Div {
             rd0: 3,
             rd1: 4,
             ra: 5,
@@ -1018,8 +876,8 @@ mod tests {
 
     decode_case!(
         decodes_divu,
-        enc_r2(generated::func::multiply_divide::DIVU),
-        DecodedInstruction::Divu {
+        enc_r2(spec::func::multiply_divide::DIVU),
+        Instruction::Divu {
             rd0: 3,
             rd1: 4,
             ra: 5,
@@ -1033,8 +891,8 @@ mod tests {
 
     decode_case!(
         decodes_lui,
-        enc_u(generated::mode::constant_construction::LUI, 0x1234),
-        DecodedInstruction::Lui {
+        enc_u(spec::mode::constant_construction::LUI, 0x1234),
+        Instruction::Lui {
             rd: 3,
             imm16: 0x1234
         }
@@ -1042,8 +900,8 @@ mod tests {
 
     decode_case!(
         decodes_lli,
-        enc_u(generated::mode::constant_construction::LLI, 0x5678),
-        DecodedInstruction::Lli {
+        enc_u(spec::mode::constant_construction::LLI, 0x5678),
+        Instruction::Lli {
             rd: 3,
             imm16: 0x5678
         }
@@ -1051,8 +909,8 @@ mod tests {
 
     decode_case!(
         decodes_lhi,
-        enc_u(generated::mode::constant_construction::LHI, 0x9ABC),
-        DecodedInstruction::Lhi {
+        enc_u(spec::mode::constant_construction::LHI, 0x9ABC),
+        Instruction::Lhi {
             rd: 3,
             imm16: 0x9ABC
         }
@@ -1064,8 +922,8 @@ mod tests {
 
     decode_case!(
         decodes_lbu_positive_offset,
-        enc_m(generated::opcode::LOAD, 0, generated::memory_size::BYTE, 12),
-        DecodedInstruction::Lbu {
+        enc_m(spec::opcode::LOAD, 0, spec::memory_size::BYTE, 12),
+        Instruction::Lbu {
             rd: 3,
             base: 4,
             offset: 12
@@ -1074,8 +932,8 @@ mod tests {
 
     decode_case!(
         decodes_lb_negative_offset,
-        enc_m(generated::opcode::LOAD, 1, generated::memory_size::BYTE, -1),
-        DecodedInstruction::Lb {
+        enc_m(spec::opcode::LOAD, 1, spec::memory_size::BYTE, -1),
+        Instruction::Lb {
             rd: 3,
             base: 4,
             offset: -1
@@ -1084,13 +942,8 @@ mod tests {
 
     decode_case!(
         decodes_lhu_positive_offset,
-        enc_m(
-            generated::opcode::LOAD,
-            0,
-            generated::memory_size::HALFWORD,
-            14
-        ),
-        DecodedInstruction::Lhu {
+        enc_m(spec::opcode::LOAD, 0, spec::memory_size::HALFWORD, 14),
+        Instruction::Lhu {
             rd: 3,
             base: 4,
             offset: 14
@@ -1099,13 +952,8 @@ mod tests {
 
     decode_case!(
         decodes_lh_negative_offset,
-        enc_m(
-            generated::opcode::LOAD,
-            1,
-            generated::memory_size::HALFWORD,
-            -2
-        ),
-        DecodedInstruction::Lh {
+        enc_m(spec::opcode::LOAD, 1, spec::memory_size::HALFWORD, -2),
+        Instruction::Lh {
             rd: 3,
             base: 4,
             offset: -2
@@ -1114,8 +962,8 @@ mod tests {
 
     decode_case!(
         decodes_lw_negative_offset,
-        enc_m(generated::opcode::LOAD, 0, generated::memory_size::WORD, -4),
-        DecodedInstruction::Lw {
+        enc_m(spec::opcode::LOAD, 0, spec::memory_size::WORD, -4),
+        Instruction::Lw {
             rd: 3,
             base: 4,
             offset: -4
@@ -1124,13 +972,8 @@ mod tests {
 
     decode_case!(
         decodes_sb_positive_offset,
-        enc_m(
-            generated::opcode::STORE,
-            0,
-            generated::memory_size::BYTE,
-            16
-        ),
-        DecodedInstruction::Sb {
+        enc_m(spec::opcode::STORE, 0, spec::memory_size::BYTE, 16),
+        Instruction::Sb {
             rs: 3,
             base: 4,
             offset: 16
@@ -1139,13 +982,8 @@ mod tests {
 
     decode_case!(
         decodes_sh_negative_offset,
-        enc_m(
-            generated::opcode::STORE,
-            0,
-            generated::memory_size::HALFWORD,
-            -8
-        ),
-        DecodedInstruction::Sh {
+        enc_m(spec::opcode::STORE, 0, spec::memory_size::HALFWORD, -8),
+        Instruction::Sh {
             rs: 3,
             base: 4,
             offset: -8
@@ -1154,13 +992,8 @@ mod tests {
 
     decode_case!(
         decodes_sw_negative_offset,
-        enc_m(
-            generated::opcode::STORE,
-            0,
-            generated::memory_size::WORD,
-            -12
-        ),
-        DecodedInstruction::Sw {
+        enc_m(spec::opcode::STORE, 0, spec::memory_size::WORD, -12),
+        Instruction::Sw {
             rs: 3,
             base: 4,
             offset: -12
@@ -1173,83 +1006,83 @@ mod tests {
 
     decode_case!(
         decodes_bf_eq_positive,
-        enc_bf(generated::condition::EQ, 4),
-        DecodedInstruction::BfEq { offset: 16 }
+        enc_bf(spec::condition::EQ, 4),
+        Instruction::BfEq { offset: 16 }
     );
     decode_case!(
         decodes_bf_ne_negative,
-        enc_bf(generated::condition::NE, -4),
-        DecodedInstruction::BfNe { offset: -16 }
+        enc_bf(spec::condition::NE, -4),
+        Instruction::BfNe { offset: -16 }
     );
     decode_case!(
         decodes_bf_lt_negative,
-        enc_bf(generated::condition::LT, -8),
-        DecodedInstruction::BfLt { offset: -32 }
+        enc_bf(spec::condition::LT, -8),
+        Instruction::BfLt { offset: -32 }
     );
     decode_case!(
         decodes_bf_le_negative,
-        enc_bf(generated::condition::LE, -12),
-        DecodedInstruction::BfLe { offset: -48 }
+        enc_bf(spec::condition::LE, -12),
+        Instruction::BfLe { offset: -48 }
     );
     decode_case!(
         decodes_bf_gt_positive,
-        enc_bf(generated::condition::GT, 16),
-        DecodedInstruction::BfGt { offset: 64 }
+        enc_bf(spec::condition::GT, 16),
+        Instruction::BfGt { offset: 64 }
     );
     decode_case!(
         decodes_bf_ge_positive,
-        enc_bf(generated::condition::GE, 20),
-        DecodedInstruction::BfGe { offset: 80 }
+        enc_bf(spec::condition::GE, 20),
+        Instruction::BfGe { offset: 80 }
     );
     decode_case!(
         decodes_bf_ltu_negative,
-        enc_bf(generated::condition::LTU, -16),
-        DecodedInstruction::BfLtu { offset: -64 }
+        enc_bf(spec::condition::LTU, -16),
+        Instruction::BfLtu { offset: -64 }
     );
     decode_case!(
         decodes_bf_leu_negative,
-        enc_bf(generated::condition::LEU, -20),
-        DecodedInstruction::BfLeu { offset: -80 }
+        enc_bf(spec::condition::LEU, -20),
+        Instruction::BfLeu { offset: -80 }
     );
     decode_case!(
         decodes_bf_gtu_positive,
-        enc_bf(generated::condition::GTU, 24),
-        DecodedInstruction::BfGtu { offset: 96 }
+        enc_bf(spec::condition::GTU, 24),
+        Instruction::BfGtu { offset: 96 }
     );
     decode_case!(
         decodes_bf_geu_positive,
-        enc_bf(generated::condition::GEU, 28),
-        DecodedInstruction::BfGeu { offset: 112 }
+        enc_bf(spec::condition::GEU, 28),
+        Instruction::BfGeu { offset: 112 }
     );
     decode_case!(
         decodes_bf_cs_negative,
-        enc_bf(generated::condition::CS, -24),
-        DecodedInstruction::BfCs { offset: -96 }
+        enc_bf(spec::condition::CS, -24),
+        Instruction::BfCs { offset: -96 }
     );
     decode_case!(
         decodes_bf_cc_negative,
-        enc_bf(generated::condition::CC, -28),
-        DecodedInstruction::BfCc { offset: -112 }
+        enc_bf(spec::condition::CC, -28),
+        Instruction::BfCc { offset: -112 }
     );
     decode_case!(
         decodes_bf_vs_positive,
-        enc_bf(generated::condition::VS, 32),
-        DecodedInstruction::BfVs { offset: 128 }
+        enc_bf(spec::condition::VS, 32),
+        Instruction::BfVs { offset: 128 }
     );
     decode_case!(
         decodes_bf_vc_positive,
-        enc_bf(generated::condition::VC, 36),
-        DecodedInstruction::BfVc { offset: 144 }
+        enc_bf(spec::condition::VC, 36),
+        Instruction::BfVc { offset: 144 }
     );
     decode_case!(
         decodes_bf_es_negative,
-        enc_bf(generated::condition::ES, -32),
-        DecodedInstruction::BfEs { offset: -128 }
+        enc_bf(spec::condition::ES, -32),
+        Instruction::BfEs { offset: -128 }
     );
     decode_case!(
         decodes_bf_ec_negative,
-        enc_bf(generated::condition::EC, -36),
-        DecodedInstruction::BfEc { offset: -144 }
+        enc_bf(spec::condition::EC, -36),
+        Instruction::BfEc { offset: -144 }
     );
 
     // ---------------------------------------------------------------------
@@ -1258,8 +1091,8 @@ mod tests {
 
     decode_case!(
         decodes_beq_positive,
-        enc_bc(generated::condition::EQ, 4),
-        DecodedInstruction::BEq {
+        enc_bc(spec::condition::EQ, 4),
+        Instruction::BEq {
             ra: 3,
             rb: 4,
             offset: 16
@@ -1268,8 +1101,8 @@ mod tests {
 
     decode_case!(
         decodes_bne_negative,
-        enc_bc(generated::condition::NE, -4),
-        DecodedInstruction::BNe {
+        enc_bc(spec::condition::NE, -4),
+        Instruction::BNe {
             ra: 3,
             rb: 4,
             offset: -16
@@ -1278,8 +1111,8 @@ mod tests {
 
     decode_case!(
         decodes_blt_negative,
-        enc_bc(generated::condition::LT, -8),
-        DecodedInstruction::BLt {
+        enc_bc(spec::condition::LT, -8),
+        Instruction::BLt {
             ra: 3,
             rb: 4,
             offset: -32
@@ -1288,8 +1121,8 @@ mod tests {
 
     decode_case!(
         decodes_ble_negative,
-        enc_bc(generated::condition::LE, -12),
-        DecodedInstruction::BLe {
+        enc_bc(spec::condition::LE, -12),
+        Instruction::BLe {
             ra: 3,
             rb: 4,
             offset: -48
@@ -1298,8 +1131,8 @@ mod tests {
 
     decode_case!(
         decodes_bgt_positive,
-        enc_bc(generated::condition::GT, 16),
-        DecodedInstruction::BGt {
+        enc_bc(spec::condition::GT, 16),
+        Instruction::BGt {
             ra: 3,
             rb: 4,
             offset: 64
@@ -1308,8 +1141,8 @@ mod tests {
 
     decode_case!(
         decodes_bge_positive,
-        enc_bc(generated::condition::GE, 20),
-        DecodedInstruction::BGe {
+        enc_bc(spec::condition::GE, 20),
+        Instruction::BGe {
             ra: 3,
             rb: 4,
             offset: 80
@@ -1318,8 +1151,8 @@ mod tests {
 
     decode_case!(
         decodes_bltu_negative,
-        enc_bc(generated::condition::LTU, -16),
-        DecodedInstruction::BLtu {
+        enc_bc(spec::condition::LTU, -16),
+        Instruction::BLtu {
             ra: 3,
             rb: 4,
             offset: -64
@@ -1328,8 +1161,8 @@ mod tests {
 
     decode_case!(
         decodes_bleu_negative,
-        enc_bc(generated::condition::LEU, -20),
-        DecodedInstruction::BLeu {
+        enc_bc(spec::condition::LEU, -20),
+        Instruction::BLeu {
             ra: 3,
             rb: 4,
             offset: -80
@@ -1338,8 +1171,8 @@ mod tests {
 
     decode_case!(
         decodes_bgtu_positive,
-        enc_bc(generated::condition::GTU, 24),
-        DecodedInstruction::BGtu {
+        enc_bc(spec::condition::GTU, 24),
+        Instruction::BGtu {
             ra: 3,
             rb: 4,
             offset: 96
@@ -1348,8 +1181,8 @@ mod tests {
 
     decode_case!(
         decodes_bgeu_positive,
-        enc_bc(generated::condition::GEU, 28),
-        DecodedInstruction::BGeu {
+        enc_bc(spec::condition::GEU, 28),
+        Instruction::BGeu {
             ra: 3,
             rb: 4,
             offset: 112
@@ -1362,26 +1195,26 @@ mod tests {
 
     decode_case!(
         decodes_jmp_positive,
-        enc_j(generated::opcode::PC_RELATIVE_JUMP, 1024),
-        DecodedInstruction::Jmp { offset: 4096 }
+        enc_j(spec::opcode::PC_RELATIVE_JUMP, 1024),
+        Instruction::Jmp { offset: 4096 }
     );
 
     decode_case!(
         decodes_jmp_negative,
-        enc_j(generated::opcode::PC_RELATIVE_JUMP, -1024),
-        DecodedInstruction::Jmp { offset: -4096 }
+        enc_j(spec::opcode::PC_RELATIVE_JUMP, -1024),
+        Instruction::Jmp { offset: -4096 }
     );
 
     decode_case!(
         decodes_call_positive,
-        enc_j(generated::opcode::PC_RELATIVE_CALL, 2048),
-        DecodedInstruction::Call { offset: 8192 }
+        enc_j(spec::opcode::PC_RELATIVE_CALL, 2048),
+        Instruction::Call { offset: 8192 }
     );
 
     decode_case!(
         decodes_call_negative,
-        enc_j(generated::opcode::PC_RELATIVE_CALL, -2048),
-        DecodedInstruction::Call { offset: -8192 }
+        enc_j(spec::opcode::PC_RELATIVE_CALL, -2048),
+        Instruction::Call { offset: -8192 }
     );
 
     // ---------------------------------------------------------------------
@@ -1390,13 +1223,13 @@ mod tests {
 
     decode_case!(
         decodes_jr,
-        enc_jr(generated::func::register_jump_call::JR),
-        DecodedInstruction::Jr { target: 4 }
+        enc_jr(spec::func::register_jump_call::JR),
+        Instruction::Jr { target: 4 }
     );
 
     decode_case!(
         decodes_jalr,
-        enc_jr(generated::func::register_jump_call::JALR),
-        DecodedInstruction::Jalr { rd: 3, target: 4 }
+        enc_jr(spec::func::register_jump_call::JALR),
+        Instruction::Jalr { rd: 3, target: 4 }
     );
 }

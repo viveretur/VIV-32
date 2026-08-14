@@ -1,0 +1,13 @@
+[package]
+name = "viv32-isa"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+name = "viv32_isa"
+path = "src/lib.rs"
+
+[dependencies]
+thiserror.workspace = true

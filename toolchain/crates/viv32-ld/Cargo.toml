@@ -1,0 +1,15 @@
+[package]
+name = "viv32-ld"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "viv32-ld"
+path = "src/main.rs"
+
+[dependencies]
+viv32-isa.workspace = true
+anyhow.workspace = true
+clap.workspace = true

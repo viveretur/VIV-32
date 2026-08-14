@@ -1,17 +1,8 @@
+use viv32_isa::Creg;
+
 use crate::Lifecycle;
 
 use super::{ExceptionCause, ProgramCounter, StatusRegister};
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum Creg {
-    PC,
-    SR,
-    EPC,
-    ESR,
-    ECause,
-    EData,
-    EvBase,
-}
 
 #[derive(Debug)]
 pub struct CregFile {

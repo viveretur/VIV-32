@@ -1,4 +1,6 @@
-use super::{Creg, CregFile, DecodedInstruction, ExceptionCause, GprFile, decode};
+use viv32_isa::{Creg, decode, Instruction, spec};
+
+use super::{CregFile, ExceptionCause, GprFile};
 
 use crate::{
     Lifecycle,
@@ -109,114 +111,114 @@ impl Cpu {
     }
 
     #[rustfmt::skip]
-    fn execute(&mut self, bus: &mut SystemBus, instruction: DecodedInstruction) {
+    fn execute(&mut self, bus: &mut SystemBus, instruction: Instruction) {
         match instruction {
             // Control Instructions. These don't set flags, so handled inline here.
-            DecodedInstruction::Nop => (),
-            DecodedInstruction::Halt => self.halt(),
-            DecodedInstruction::SoftwareTrap { imm } => self.creg.raise_exception(ExceptionCause::SoftwareTrap, imm as u32),
-            DecodedInstruction::SystemCall => self.creg.raise_exception(ExceptionCause::SystemCall, 0),
-            DecodedInstruction::IRet => self.creg.iret(),
-            DecodedInstruction::EI => self.creg.ei(),
-            DecodedInstruction::DI => self.creg.di(),
-            DecodedInstruction::RdPc { rd } => self.write_gpr(rd, self.creg.read_register(Creg::PC)),
-            DecodedInstruction::Mrs { creg4, rd } => self.write_gpr(rd, self.creg.read_register(creg4)),
-            DecodedInstruction::Msr { creg4, rs } => self.creg.write_register(creg4, self.read_gpr(rs)),
+            Instruction::Nop => (),
+            Instruction::Halt => self.halt(),
+            Instruction::SoftwareTrap { imm } => self.creg.raise_exception(ExceptionCause::SoftwareTrap, imm as u32),
+            Instruction::SystemCall => self.creg.raise_exception(ExceptionCause::SystemCall, 0),
+            Instruction::IRet => self.creg.iret(),
+            Instruction::EI => self.creg.ei(),
+            Instruction::DI => self.creg.di(),
+            Instruction::RdPc { rd } => self.write_gpr(rd, self.creg.read_register(Creg::PC)),
+            Instruction::Mrs { creg4, rd } => self.write_gpr(rd, self.creg.read_register(creg4)),
+            Instruction::Msr { creg4, rs } => self.creg.write_register(creg4, self.read_gpr(rs)),
 
             // Register ALU
-            DecodedInstruction::Add { rd, ra, rb } => self.execute_add(rd, ra, self.read_gpr(rb)),
-            DecodedInstruction::Sub { rd, ra, rb } => self.execute_sub(rd, ra, self.read_gpr(rb)),
-            DecodedInstruction::And { rd, ra, rb } => self.execute_and(rd, ra, self.read_gpr(rb)),
-            DecodedInstruction::Or { rd, ra, rb } => self.execute_or(rd, ra, self.read_gpr(rb)),
-            DecodedInstruction::Xor { rd, ra, rb } => self.execute_xor(rd, ra, self.read_gpr(rb)),
-            DecodedInstruction::Not { rd, ra } => self.execute_not(rd, ra),
-            DecodedInstruction::Neg { rd, ra } => self.execute_neg(rd, ra),
-            DecodedInstruction::Cmp { ra, rb } => self.execute_cmp(ra, self.read_gpr(rb)),
+            Instruction::Add { rd, ra, rb } => self.execute_add(rd, ra, self.read_gpr(rb)),
+            Instruction::Sub { rd, ra, rb } => self.execute_sub(rd, ra, self.read_gpr(rb)),
+            Instruction::And { rd, ra, rb } => self.execute_and(rd, ra, self.read_gpr(rb)),
+            Instruction::Or { rd, ra, rb } => self.execute_or(rd, ra, self.read_gpr(rb)),
+            Instruction::Xor { rd, ra, rb } => self.execute_xor(rd, ra, self.read_gpr(rb)),
+            Instruction::Not { rd, ra } => self.execute_not(rd, ra),
+            Instruction::Neg { rd, ra } => self.execute_neg(rd, ra),
+            Instruction::Cmp { ra, rb } => self.execute_cmp(ra, self.read_gpr(rb)),
 
             // Immediate Arithmetic and Compare
-            DecodedInstruction::Addi { rd, ra, imm } => self.execute_add(rd, ra, imm),
-            DecodedInstruction::Subi { rd, ra, imm } => self.execute_sub(rd, ra, imm),
-            DecodedInstruction::Cmpi { ra, imm } => self.execute_cmp(ra, imm),
+            Instruction::Addi { rd, ra, imm } => self.execute_add(rd, ra, imm),
+            Instruction::Subi { rd, ra, imm } => self.execute_sub(rd, ra, imm),
+            Instruction::Cmpi { ra, imm } => self.execute_cmp(ra, imm),
 
             // Immediate Logical
-            DecodedInstruction::Andi { rd, ra, imm } => self.execute_and(rd, ra, imm),
-            DecodedInstruction::Ori { rd, ra, imm } => self.execute_or(rd, ra, imm),
-            DecodedInstruction::Xori { rd, ra, imm } => self.execute_xor(rd, ra, imm),
+            Instruction::Andi { rd, ra, imm } => self.execute_and(rd, ra, imm),
+            Instruction::Ori { rd, ra, imm } => self.execute_or(rd, ra, imm),
+            Instruction::Xori { rd, ra, imm } => self.execute_xor(rd, ra, imm),
 
             // Register Shifts
-            DecodedInstruction::Shl { rd, ra, rb } => self.execute_shl(rd, ra, self.read_gpr(rb)),
-            DecodedInstruction::Shr { rd, ra, rb } => self.execute_shr(rd, ra, self.read_gpr(rb)),
-            DecodedInstruction::Sar { rd, ra, rb } => self.execute_sar(rd, ra, self.read_gpr(rb)),
+            Instruction::Shl { rd, ra, rb } => self.execute_shl(rd, ra, self.read_gpr(rb)),
+            Instruction::Shr { rd, ra, rb } => self.execute_shr(rd, ra, self.read_gpr(rb)),
+            Instruction::Sar { rd, ra, rb } => self.execute_sar(rd, ra, self.read_gpr(rb)),
 
             // Immediate Shifts
-            DecodedInstruction::Shli { rd, ra, imm } => self.execute_shl(rd, ra, imm as u32),
-            DecodedInstruction::Shri { rd, ra, imm } => self.execute_shr(rd, ra, imm as u32),
-            DecodedInstruction::Sari { rd, ra, imm } => self.execute_sar(rd, ra, imm as u32),
+            Instruction::Shli { rd, ra, imm } => self.execute_shl(rd, ra, imm as u32),
+            Instruction::Shri { rd, ra, imm } => self.execute_shr(rd, ra, imm as u32),
+            Instruction::Sari { rd, ra, imm } => self.execute_sar(rd, ra, imm as u32),
 
             // Bit Immediate
-            DecodedInstruction::Btst { ra, imm } => self.execute_btst(ra, imm),
-            DecodedInstruction::Bset { rd, ra, imm } => self.execute_bset(rd, ra, imm),
-            DecodedInstruction::Bclr { rd, ra, imm } => self.execute_bclr(rd, ra, imm),
-            DecodedInstruction::Btgl { rd, ra, imm } => self.execute_btgl(rd, ra, imm),
+            Instruction::Btst { ra, imm } => self.execute_btst(ra, imm),
+            Instruction::Bset { rd, ra, imm } => self.execute_bset(rd, ra, imm),
+            Instruction::Bclr { rd, ra, imm } => self.execute_bclr(rd, ra, imm),
+            Instruction::Btgl { rd, ra, imm } => self.execute_btgl(rd, ra, imm),
 
             // Multiply and Divide
-            DecodedInstruction::Mul { rd0, rd1, ra, rb } => self.execute_mul(rd0, rd1, ra, rb),
-            DecodedInstruction::Mulu { rd0, rd1, ra, rb } => self.execute_mulu(rd0, rd1, ra, rb),
-            DecodedInstruction::Div { rd0, rd1, ra, rb } => self.execute_div(rd0, rd1, ra, rb),
-            DecodedInstruction::Divu { rd0, rd1, ra, rb } => self.execute_divu(rd0, rd1, ra, rb),
+            Instruction::Mul { rd0, rd1, ra, rb } => self.execute_mul(rd0, rd1, ra, rb),
+            Instruction::Mulu { rd0, rd1, ra, rb } => self.execute_mulu(rd0, rd1, ra, rb),
+            Instruction::Div { rd0, rd1, ra, rb } => self.execute_div(rd0, rd1, ra, rb),
+            Instruction::Divu { rd0, rd1, ra, rb } => self.execute_divu(rd0, rd1, ra, rb),
 
             // Constant Construction
-            DecodedInstruction::Lui { rd, imm16 } => self.execute_lui(rd, imm16),
-            DecodedInstruction::Lli { rd, imm16 } => self.execute_lli(rd, imm16),
-            DecodedInstruction::Lhi { rd, imm16 } => self.execute_lhi(rd, imm16),
+            Instruction::Lui { rd, imm16 } => self.execute_lui(rd, imm16),
+            Instruction::Lli { rd, imm16 } => self.execute_lli(rd, imm16),
+            Instruction::Lhi { rd, imm16 } => self.execute_lhi(rd, imm16),
 
             // Load and Store
-            DecodedInstruction::Lb { rd, base, offset } => self.execute_lb(bus, rd, base, offset),
-            DecodedInstruction::Lbu { rd, base, offset } => self.execute_lbu(bus, rd, base, offset),
-            DecodedInstruction::Lh { rd, base, offset } => self.execute_lh(bus, rd, base, offset),
-            DecodedInstruction::Lhu { rd, base, offset } => self.execute_lhu(bus, rd, base, offset),
-            DecodedInstruction::Lw { rd, base, offset } => self.execute_lw(bus, rd, base, offset),
-            DecodedInstruction::Sb { rs, base, offset } => self.execute_sb(bus, rs, base, offset),
-            DecodedInstruction::Sh { rs, base, offset } => self.execute_sh(bus, rs, base, offset),
-            DecodedInstruction::Sw { rs, base, offset } => self.execute_sw(bus, rs, base, offset),
+            Instruction::Lb { rd, base, offset } => self.execute_lb(bus, rd, base, offset),
+            Instruction::Lbu { rd, base, offset } => self.execute_lbu(bus, rd, base, offset),
+            Instruction::Lh { rd, base, offset } => self.execute_lh(bus, rd, base, offset),
+            Instruction::Lhu { rd, base, offset } => self.execute_lhu(bus, rd, base, offset),
+            Instruction::Lw { rd, base, offset } => self.execute_lw(bus, rd, base, offset),
+            Instruction::Sb { rs, base, offset } => self.execute_sb(bus, rs, base, offset),
+            Instruction::Sh { rs, base, offset } => self.execute_sh(bus, rs, base, offset),
+            Instruction::Sw { rs, base, offset } => self.execute_sw(bus, rs, base, offset),
 
             // Branch on Flag
-            DecodedInstruction::BfEq { offset } => self.execute_jmp(offset, self.creg.sr().zero()),
-            DecodedInstruction::BfNe { offset } => self.execute_jmp(offset, !self.creg.sr().zero()),
-            DecodedInstruction::BfLt { offset } => self.execute_jmp(offset, self.creg.sr().negative() != self.creg.sr().overflow()),
-            DecodedInstruction::BfLe { offset } => self.execute_jmp(offset, self.creg.sr().zero() || self.creg.sr().negative() != self.creg.sr().overflow()),
-            DecodedInstruction::BfGt { offset } => self.execute_jmp(offset, !self.creg.sr().zero() && self.creg.sr().negative() == self.creg.sr().overflow()),
-            DecodedInstruction::BfGe { offset } => self.execute_jmp(offset, self.creg.sr().negative() == self.creg.sr().overflow()),
-            DecodedInstruction::BfLtu { offset } => self.execute_jmp(offset, !self.creg.sr().carry()),
-            DecodedInstruction::BfLeu { offset } => self.execute_jmp(offset, !self.creg.sr().carry() || self.creg.sr().zero()),
-            DecodedInstruction::BfGtu { offset } => self.execute_jmp(offset, self.creg.sr().carry() && !self.creg.sr().zero()),
-            DecodedInstruction::BfGeu { offset } => self.execute_jmp(offset, self.creg.sr().carry()),
-            DecodedInstruction::BfCs { offset } => self.execute_jmp(offset, self.creg.sr().carry()),
-            DecodedInstruction::BfCc { offset } => self.execute_jmp(offset, !self.creg.sr().carry()),
-            DecodedInstruction::BfVs { offset } => self.execute_jmp(offset, self.creg.sr().overflow()),
-            DecodedInstruction::BfVc { offset } => self.execute_jmp(offset, !self.creg.sr().overflow()),
-            DecodedInstruction::BfEs { offset } => self.execute_jmp(offset, self.creg.sr().arithmetic_error()),
-            DecodedInstruction::BfEc { offset } => self.execute_jmp(offset, !self.creg.sr().arithmetic_error()),
+            Instruction::BfEq { offset } => self.execute_jmp(offset, self.creg.sr().zero()),
+            Instruction::BfNe { offset } => self.execute_jmp(offset, !self.creg.sr().zero()),
+            Instruction::BfLt { offset } => self.execute_jmp(offset, self.creg.sr().negative() != self.creg.sr().overflow()),
+            Instruction::BfLe { offset } => self.execute_jmp(offset, self.creg.sr().zero() || self.creg.sr().negative() != self.creg.sr().overflow()),
+            Instruction::BfGt { offset } => self.execute_jmp(offset, !self.creg.sr().zero() && self.creg.sr().negative() == self.creg.sr().overflow()),
+            Instruction::BfGe { offset } => self.execute_jmp(offset, self.creg.sr().negative() == self.creg.sr().overflow()),
+            Instruction::BfLtu { offset } => self.execute_jmp(offset, !self.creg.sr().carry()),
+            Instruction::BfLeu { offset } => self.execute_jmp(offset, !self.creg.sr().carry() || self.creg.sr().zero()),
+            Instruction::BfGtu { offset } => self.execute_jmp(offset, self.creg.sr().carry() && !self.creg.sr().zero()),
+            Instruction::BfGeu { offset } => self.execute_jmp(offset, self.creg.sr().carry()),
+            Instruction::BfCs { offset } => self.execute_jmp(offset, self.creg.sr().carry()),
+            Instruction::BfCc { offset } => self.execute_jmp(offset, !self.creg.sr().carry()),
+            Instruction::BfVs { offset } => self.execute_jmp(offset, self.creg.sr().overflow()),
+            Instruction::BfVc { offset } => self.execute_jmp(offset, !self.creg.sr().overflow()),
+            Instruction::BfEs { offset } => self.execute_jmp(offset, self.creg.sr().arithmetic_error()),
+            Instruction::BfEc { offset } => self.execute_jmp(offset, !self.creg.sr().arithmetic_error()),
 
             // Branch on Register Comparison
-            DecodedInstruction::BEq { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) == self.read_gpr(rb)),
-            DecodedInstruction::BNe { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) != self.read_gpr(rb)),
-            DecodedInstruction::BLt { ra, rb, offset } => self.execute_jmp(offset, (self.read_gpr(ra) as i32) < self.read_gpr(rb) as i32),
-            DecodedInstruction::BLe { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) as i32 <= self.read_gpr(rb) as i32),
-            DecodedInstruction::BGt { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) as i32 > self.read_gpr(rb) as i32),
-            DecodedInstruction::BGe { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) as i32 >= self.read_gpr(rb) as i32),
-            DecodedInstruction::BLtu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) < self.read_gpr(rb)), 
-            DecodedInstruction::BLeu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) <= self.read_gpr(rb)),
-            DecodedInstruction::BGtu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) > self.read_gpr(rb)),
-            DecodedInstruction::BGeu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) >= self.read_gpr(rb)),
+            Instruction::BEq { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) == self.read_gpr(rb)),
+            Instruction::BNe { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) != self.read_gpr(rb)),
+            Instruction::BLt { ra, rb, offset } => self.execute_jmp(offset, (self.read_gpr(ra) as i32) < self.read_gpr(rb) as i32),
+            Instruction::BLe { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) as i32 <= self.read_gpr(rb) as i32),
+            Instruction::BGt { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) as i32 > self.read_gpr(rb) as i32),
+            Instruction::BGe { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) as i32 >= self.read_gpr(rb) as i32),
+            Instruction::BLtu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) < self.read_gpr(rb)), 
+            Instruction::BLeu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) <= self.read_gpr(rb)),
+            Instruction::BGtu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) > self.read_gpr(rb)),
+            Instruction::BGeu { ra, rb, offset } => self.execute_jmp(offset, self.read_gpr(ra) >= self.read_gpr(rb)),
 
             // Jump/Call Immediate
-            DecodedInstruction::Jmp { offset } => self.execute_jmp(offset, true),
-            DecodedInstruction::Call { offset } => self.execute_call(offset),
+            Instruction::Jmp { offset } => self.execute_jmp(offset, true),
+            Instruction::Call { offset } => self.execute_call(offset),
 
             // Jump/Call Register
-            DecodedInstruction::Jr { target } => self.execute_jr(target),
-            DecodedInstruction::Jalr { rd, target } => self.execute_jalr(rd, target),
+            Instruction::Jr { target } => self.execute_jr(target),
+            Instruction::Jalr { rd, target } => self.execute_jalr(rd, target),
         }
     }
 
@@ -563,7 +565,7 @@ impl Cpu {
     }
 
     fn execute_call(&mut self, offset: i32) {
-        use crate::isa::generated::gpr;
+        use spec::gpr;
 
         // Note that PC is updated between fetch and execute, so points to
         // the correct return address already.
@@ -600,7 +602,8 @@ impl Lifecycle for Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{cpu::{ProgramCounter, StatusRegister}, isa::generated::gpr, Ram};
+    use crate::{cpu::{ProgramCounter, StatusRegister}, Ram};
+    use spec::gpr;
 
     #[test]
     fn new_cpu_starts_halted_with_reset_registers() {
@@ -723,7 +726,8 @@ mod tests {
 
     #[test]
     fn interrupt_sets_vector_and_iret_returns() {
-        use crate::{isa::generated::{sysop, format::x}, Timer};
+        use crate::Timer;
+        use spec::{sysop, format::x};
         
         // Values for test offset.
         const TIMER_BASE: u32 = 0xFFFF_0200;
@@ -778,7 +782,8 @@ mod tests {
 #[cfg(test)]
 mod instruction_unit_tests {
     use super::*;
-    use crate::{isa::generated::gpr, Ram};
+    use crate::Ram;
+    use spec::gpr;
 
     fn test_harness() -> (SystemBus, Cpu) {
         let mut cpu = Cpu::new();
@@ -834,7 +839,7 @@ mod instruction_unit_tests {
         set(&mut cpu, gpr::R1, 0xCAFE_BABE);
         cpu.creg.update_sr_flags(false, false, true, true, false);
 
-        cpu.execute(&mut bus, DecodedInstruction::Nop);
+        cpu.execute(&mut bus, Instruction::Nop);
 
         assert_eq!(pc(&cpu), 0x100);
         assert_eq!(get(&cpu, gpr::R1), 0xCAFE_BABE);
@@ -845,7 +850,7 @@ mod instruction_unit_tests {
     #[test]
     fn halt_sets_cpu_halted() {
         let (mut bus, mut cpu) = test_harness();
-        cpu.execute(&mut bus, DecodedInstruction::Halt);
+        cpu.execute(&mut bus, Instruction::Halt);
         assert!(cpu.is_halted());
     }
 
@@ -853,7 +858,7 @@ mod instruction_unit_tests {
     fn rdpc_reads_current_pc() {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x1234_5678);
-        cpu.execute(&mut bus, DecodedInstruction::RdPc { rd: r(gpr::R2) });
+        cpu.execute(&mut bus, Instruction::RdPc { rd: r(gpr::R2) });
         assert_eq!(get(&cpu, gpr::R2), 0x1234_5678);
     }
 
@@ -861,7 +866,7 @@ mod instruction_unit_tests {
     fn mrs_reads_control_register() {
         let (mut bus, mut cpu) = test_harness();
         cpu.creg.write_register(Creg::EData, 0xDEAD_BEEF);
-        cpu.execute(&mut bus, DecodedInstruction::Mrs {
+        cpu.execute(&mut bus, Instruction::Mrs {
             creg4: Creg::EData,
             rd: r(gpr::R3),
         });
@@ -872,7 +877,7 @@ mod instruction_unit_tests {
     fn msr_writes_control_register() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R3, 0xBEEF_CAFE);
-        cpu.execute(&mut bus, DecodedInstruction::Msr {
+        cpu.execute(&mut bus, Instruction::Msr {
             creg4: Creg::EData,
             rs: r(gpr::R3),
         });
@@ -883,7 +888,7 @@ mod instruction_unit_tests {
     fn syscall_raises_system_call_with_zero_edata() {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x200);
-        cpu.execute(&mut bus, DecodedInstruction::SystemCall);
+        cpu.execute(&mut bus, Instruction::SystemCall);
         assert_exception(&cpu, ExceptionCause::SystemCall, 0);
         assert_eq!(cpu.creg.read_register(Creg::EPC), 0x200);
     }
@@ -892,7 +897,7 @@ mod instruction_unit_tests {
     fn software_trap_raises_trap_with_imm_edata() {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x204);
-        cpu.execute(&mut bus, DecodedInstruction::SoftwareTrap { imm: -4 });
+        cpu.execute(&mut bus, Instruction::SoftwareTrap { imm: -4 });
         assert_exception(&cpu, ExceptionCause::SoftwareTrap, 0xFFFF_FFFC);
         assert_eq!(cpu.creg.read_register(Creg::EPC), 0x204);
     }
@@ -902,7 +907,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         cpu.creg.write_register(Creg::EPC, 0x3456_789A);
         cpu.creg.write_register(Creg::ESR, 0x0000_001F);
-        cpu.execute(&mut bus, DecodedInstruction::IRet);
+        cpu.execute(&mut bus, Instruction::IRet);
         assert_eq!(cpu.creg.read_register(Creg::PC), 0x3456_789A);
         assert_eq!(cpu.creg.read_register(Creg::SR), 0x0000_001F);
     }
@@ -915,7 +920,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
         set(&mut cpu, gpr::R2, 1);
-        cpu.execute(&mut bus, DecodedInstruction::Add {
+        cpu.execute(&mut bus, Instruction::Add {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -929,7 +934,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x7FFF_FFFF);
         set(&mut cpu, gpr::R2, 1);
-        cpu.execute(&mut bus, DecodedInstruction::Add {
+        cpu.execute(&mut bus, Instruction::Add {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -942,7 +947,7 @@ mod instruction_unit_tests {
     fn addi_uses_sign_extended_bit_pattern() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 1);
-        cpu.execute(&mut bus, DecodedInstruction::Addi {
+        cpu.execute(&mut bus, Instruction::Addi {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 0xFFFF_FFFF,
@@ -956,7 +961,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0);
         set(&mut cpu, gpr::R2, 1);
-        cpu.execute(&mut bus, DecodedInstruction::Sub {
+        cpu.execute(&mut bus, Instruction::Sub {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -970,7 +975,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x8000_0000);
         set(&mut cpu, gpr::R2, 1);
-        cpu.execute(&mut bus, DecodedInstruction::Sub {
+        cpu.execute(&mut bus, Instruction::Sub {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -983,7 +988,7 @@ mod instruction_unit_tests {
     fn subi_uses_sign_extended_bit_pattern() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 1);
-        cpu.execute(&mut bus, DecodedInstruction::Subi {
+        cpu.execute(&mut bus, Instruction::Subi {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 0xFFFF_FFFF,
@@ -998,7 +1003,7 @@ mod instruction_unit_tests {
         set(&mut cpu, gpr::R1, 0);
         set(&mut cpu, gpr::R2, 1);
         set(&mut cpu, gpr::R3, 0xA5A5_A5A5);
-        cpu.execute(&mut bus, DecodedInstruction::Cmp {
+        cpu.execute(&mut bus, Instruction::Cmp {
             ra: r(gpr::R1),
             rb: r(gpr::R2),
         });
@@ -1011,7 +1016,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x1234_5678);
         set(&mut cpu, gpr::R2, 0x1234_5678);
-        cpu.execute(&mut bus, DecodedInstruction::Cmp {
+        cpu.execute(&mut bus, Instruction::Cmp {
             ra: r(gpr::R1),
             rb: r(gpr::R2),
         });
@@ -1022,7 +1027,7 @@ mod instruction_unit_tests {
     fn cmpi_uses_sign_extended_bit_pattern() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0);
-        cpu.execute(&mut bus, DecodedInstruction::Cmpi {
+        cpu.execute(&mut bus, Instruction::Cmpi {
             ra: r(gpr::R1),
             imm: 0xFFFF_FFFF,
         });
@@ -1037,7 +1042,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0xF0F0_0000);
         set(&mut cpu, gpr::R2, 0x0000_F0F0);
-        cpu.execute(&mut bus, DecodedInstruction::And {
+        cpu.execute(&mut bus, Instruction::And {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -1050,7 +1055,7 @@ mod instruction_unit_tests {
     fn andi_uses_zero_extended_immediate_operand() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
-        cpu.execute(&mut bus, DecodedInstruction::Andi {
+        cpu.execute(&mut bus, Instruction::Andi {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 0x0000_8000,
@@ -1064,7 +1069,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x8000_0000);
         set(&mut cpu, gpr::R2, 0x0000_0001);
-        cpu.execute(&mut bus, DecodedInstruction::Or {
+        cpu.execute(&mut bus, Instruction::Or {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -1078,7 +1083,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0xFFFF_0000);
         set(&mut cpu, gpr::R2, 0x00FF_00FF);
-        cpu.execute(&mut bus, DecodedInstruction::Xor {
+        cpu.execute(&mut bus, Instruction::Xor {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -1091,7 +1096,7 @@ mod instruction_unit_tests {
     fn not_inverts_all_bits() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0xFFFF_0000);
-        cpu.execute(&mut bus, DecodedInstruction::Not {
+        cpu.execute(&mut bus, Instruction::Not {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
         });
@@ -1103,7 +1108,7 @@ mod instruction_unit_tests {
     fn neg_zero_sets_zero_and_no_borrow() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0);
-        cpu.execute(&mut bus, DecodedInstruction::Neg {
+        cpu.execute(&mut bus, Instruction::Neg {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
         });
@@ -1115,7 +1120,7 @@ mod instruction_unit_tests {
     fn neg_one_wraps_to_all_ones() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 1);
-        cpu.execute(&mut bus, DecodedInstruction::Neg {
+        cpu.execute(&mut bus, Instruction::Neg {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
         });
@@ -1127,7 +1132,7 @@ mod instruction_unit_tests {
     fn neg_min_i32_sets_overflow() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x8000_0000);
-        cpu.execute(&mut bus, DecodedInstruction::Neg {
+        cpu.execute(&mut bus, Instruction::Neg {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
         });
@@ -1143,7 +1148,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x8000_0000);
         set(&mut cpu, gpr::R2, 0);
-        cpu.execute(&mut bus, DecodedInstruction::Shl {
+        cpu.execute(&mut bus, Instruction::Shl {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -1156,7 +1161,7 @@ mod instruction_unit_tests {
     fn shl_sets_carry_from_last_bit_shifted_out() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x8000_0001);
-        cpu.execute(&mut bus, DecodedInstruction::Shli {
+        cpu.execute(&mut bus, Instruction::Shli {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 1,
@@ -1169,7 +1174,7 @@ mod instruction_unit_tests {
     fn shl_by_31_sets_carry_from_original_bit_1() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x0000_0002);
-        cpu.execute(&mut bus, DecodedInstruction::Shli {
+        cpu.execute(&mut bus, Instruction::Shli {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 31,
@@ -1184,7 +1189,7 @@ mod instruction_unit_tests {
         set(&mut cpu, gpr::R1, 1);
         set(&mut cpu, gpr::R2, 32);
         set(&mut cpu, gpr::R3, 0xDEAD_BEEF);
-        cpu.execute(&mut bus, DecodedInstruction::Shl {
+        cpu.execute(&mut bus, Instruction::Shl {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -1197,7 +1202,7 @@ mod instruction_unit_tests {
     fn shr_sets_carry_from_last_bit_shifted_out() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 3);
-        cpu.execute(&mut bus, DecodedInstruction::Shri {
+        cpu.execute(&mut bus, Instruction::Shri {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 1,
@@ -1210,7 +1215,7 @@ mod instruction_unit_tests {
     fn shr_by_31_uses_original_bit_30_for_carry() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x4000_0000);
-        cpu.execute(&mut bus, DecodedInstruction::Shri {
+        cpu.execute(&mut bus, Instruction::Shri {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 31,
@@ -1223,7 +1228,7 @@ mod instruction_unit_tests {
     fn sar_preserves_sign_bit() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x8000_0000);
-        cpu.execute(&mut bus, DecodedInstruction::Sari {
+        cpu.execute(&mut bus, Instruction::Sari {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 1,
@@ -1236,7 +1241,7 @@ mod instruction_unit_tests {
     fn sar_sets_carry_from_last_bit_shifted_out() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x8000_0001);
-        cpu.execute(&mut bus, DecodedInstruction::Sari {
+        cpu.execute(&mut bus, Instruction::Sari {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 1,
@@ -1251,7 +1256,7 @@ mod instruction_unit_tests {
         set(&mut cpu, gpr::R1, 0x8000_0000);
         set(&mut cpu, gpr::R2, 33);
         set(&mut cpu, gpr::R3, 0xDEAD_BEEF);
-        cpu.execute(&mut bus, DecodedInstruction::Sar {
+        cpu.execute(&mut bus, Instruction::Sar {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             rb: r(gpr::R2),
@@ -1267,7 +1272,7 @@ mod instruction_unit_tests {
     fn btst_set_bit_clears_zero_and_does_not_write_register() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x80);
-        cpu.execute(&mut bus, DecodedInstruction::Btst {
+        cpu.execute(&mut bus, Instruction::Btst {
             ra: r(gpr::R1),
             imm: 7,
         });
@@ -1279,7 +1284,7 @@ mod instruction_unit_tests {
     fn btst_clear_bit_sets_zero() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0);
-        cpu.execute(&mut bus, DecodedInstruction::Btst {
+        cpu.execute(&mut bus, Instruction::Btst {
             ra: r(gpr::R1),
             imm: 7,
         });
@@ -1290,7 +1295,7 @@ mod instruction_unit_tests {
     fn bset_sets_selected_bit_and_updates_result_flags() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0);
-        cpu.execute(&mut bus, DecodedInstruction::Bset {
+        cpu.execute(&mut bus, Instruction::Bset {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 31,
@@ -1303,7 +1308,7 @@ mod instruction_unit_tests {
     fn bclr_clears_selected_bit() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
-        cpu.execute(&mut bus, DecodedInstruction::Bclr {
+        cpu.execute(&mut bus, Instruction::Bclr {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 31,
@@ -1316,7 +1321,7 @@ mod instruction_unit_tests {
     fn btgl_toggles_selected_bit() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 1);
-        cpu.execute(&mut bus, DecodedInstruction::Btgl {
+        cpu.execute(&mut bus, Instruction::Btgl {
             rd: r(gpr::R3),
             ra: r(gpr::R1),
             imm: 0,
@@ -1333,7 +1338,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0xFFFF_FFFE);
         set(&mut cpu, gpr::R2, 3);
-        cpu.execute(&mut bus, DecodedInstruction::Mul {
+        cpu.execute(&mut bus, Instruction::Mul {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1349,7 +1354,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0);
         set(&mut cpu, gpr::R2, 0x1234_5678);
-        cpu.execute(&mut bus, DecodedInstruction::Mul {
+        cpu.execute(&mut bus, Instruction::Mul {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1365,7 +1370,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
         set(&mut cpu, gpr::R2, 2);
-        cpu.execute(&mut bus, DecodedInstruction::Mulu {
+        cpu.execute(&mut bus, Instruction::Mulu {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1381,7 +1386,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 7);
         set(&mut cpu, gpr::R2, 3);
-        cpu.execute(&mut bus, DecodedInstruction::Div {
+        cpu.execute(&mut bus, Instruction::Div {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1397,7 +1402,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, (-7i32) as u32);
         set(&mut cpu, gpr::R2, 3);
-        cpu.execute(&mut bus, DecodedInstruction::Div {
+        cpu.execute(&mut bus, Instruction::Div {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1415,7 +1420,7 @@ mod instruction_unit_tests {
         set(&mut cpu, gpr::R2, 0);
         set(&mut cpu, gpr::R3, 0xAAAA_AAAA);
         set(&mut cpu, gpr::R4, 0xBBBB_BBBB);
-        cpu.execute(&mut bus, DecodedInstruction::Div {
+        cpu.execute(&mut bus, Instruction::Div {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1433,7 +1438,7 @@ mod instruction_unit_tests {
         set(&mut cpu, gpr::R2, (-1i32) as u32);
         set(&mut cpu, gpr::R3, 0xAAAA_AAAA);
         set(&mut cpu, gpr::R4, 0xBBBB_BBBB);
-        cpu.execute(&mut bus, DecodedInstruction::Div {
+        cpu.execute(&mut bus, Instruction::Div {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1449,7 +1454,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 7);
         set(&mut cpu, gpr::R2, 3);
-        cpu.execute(&mut bus, DecodedInstruction::Divu {
+        cpu.execute(&mut bus, Instruction::Divu {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1465,7 +1470,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x8000_0000);
         set(&mut cpu, gpr::R2, 1);
-        cpu.execute(&mut bus, DecodedInstruction::Divu {
+        cpu.execute(&mut bus, Instruction::Divu {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1483,7 +1488,7 @@ mod instruction_unit_tests {
         set(&mut cpu, gpr::R2, 0);
         set(&mut cpu, gpr::R3, 0xAAAA_AAAA);
         set(&mut cpu, gpr::R4, 0xBBBB_BBBB);
-        cpu.execute(&mut bus, DecodedInstruction::Divu {
+        cpu.execute(&mut bus, Instruction::Divu {
             rd0: r(gpr::R3),
             rd1: r(gpr::R4),
             ra: r(gpr::R1),
@@ -1500,7 +1505,7 @@ mod instruction_unit_tests {
     #[test]
     fn lui_writes_high_half_and_sets_negative_from_result() {
         let (mut bus, mut cpu) = test_harness();
-        cpu.execute(&mut bus, DecodedInstruction::Lui {
+        cpu.execute(&mut bus, Instruction::Lui {
             rd: r(gpr::R3),
             imm16: 0x8000,
         });
@@ -1511,7 +1516,7 @@ mod instruction_unit_tests {
     #[test]
     fn lui_zero_sets_zero() {
         let (mut bus, mut cpu) = test_harness();
-        cpu.execute(&mut bus, DecodedInstruction::Lui {
+        cpu.execute(&mut bus, Instruction::Lui {
             rd: r(gpr::R3),
             imm16: 0,
         });
@@ -1522,7 +1527,7 @@ mod instruction_unit_tests {
     #[test]
     fn lli_zero_extends_immediate_and_never_sets_negative() {
         let (mut bus, mut cpu) = test_harness();
-        cpu.execute(&mut bus, DecodedInstruction::Lli {
+        cpu.execute(&mut bus, Instruction::Lli {
             rd: r(gpr::R3),
             imm16: 0xFFFF,
         });
@@ -1534,7 +1539,7 @@ mod instruction_unit_tests {
     fn lhi_sets_high_half_and_preserves_low_half_when_high_half_was_clear() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R3, 0x0000_5678);
-        cpu.execute(&mut bus, DecodedInstruction::Lhi {
+        cpu.execute(&mut bus, Instruction::Lhi {
             rd: r(gpr::R3),
             imm16: 0xABCD,
         });
@@ -1550,7 +1555,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         bus.write8(0x100, 0x80).unwrap();
         set(&mut cpu, gpr::R1, 0x100);
-        cpu.execute(&mut bus, DecodedInstruction::Lb {
+        cpu.execute(&mut bus, Instruction::Lb {
             rd: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1563,7 +1568,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         bus.write8(0x100, 0x80).unwrap();
         set(&mut cpu, gpr::R1, 0x100);
-        cpu.execute(&mut bus, DecodedInstruction::Lbu {
+        cpu.execute(&mut bus, Instruction::Lbu {
             rd: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1576,7 +1581,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         bus.write16(0x100, 0x8001).unwrap();
         set(&mut cpu, gpr::R1, 0x100);
-        cpu.execute(&mut bus, DecodedInstruction::Lh {
+        cpu.execute(&mut bus, Instruction::Lh {
             rd: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1589,7 +1594,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         bus.write16(0x100, 0x8001).unwrap();
         set(&mut cpu, gpr::R1, 0x100);
-        cpu.execute(&mut bus, DecodedInstruction::Lhu {
+        cpu.execute(&mut bus, Instruction::Lhu {
             rd: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1602,7 +1607,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         bus.write32(0x100, 0x1234_5678).unwrap();
         set(&mut cpu, gpr::R1, 0x100);
-        cpu.execute(&mut bus, DecodedInstruction::Lw {
+        cpu.execute(&mut bus, Instruction::Lw {
             rd: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1615,7 +1620,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         bus.write32(0x100, 0xCAFE_BABE).unwrap();
         set(&mut cpu, gpr::R1, 0x104);
-        cpu.execute(&mut bus, DecodedInstruction::Lw {
+        cpu.execute(&mut bus, Instruction::Lw {
             rd: r(gpr::R2),
             base: r(gpr::R1),
             offset: -4,
@@ -1628,7 +1633,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x100);
         set(&mut cpu, gpr::R2, 0xAABB_CCDD);
-        cpu.execute(&mut bus, DecodedInstruction::Sb {
+        cpu.execute(&mut bus, Instruction::Sb {
             rs: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1641,7 +1646,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x100);
         set(&mut cpu, gpr::R2, 0xAABB_CCDD);
-        cpu.execute(&mut bus, DecodedInstruction::Sh {
+        cpu.execute(&mut bus, Instruction::Sh {
             rs: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1654,7 +1659,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x100);
         set(&mut cpu, gpr::R2, 0xAABB_CCDD);
-        cpu.execute(&mut bus, DecodedInstruction::Sw {
+        cpu.execute(&mut bus, Instruction::Sw {
             rs: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1667,7 +1672,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x101);
         set(&mut cpu, gpr::R2, 0xDEAD_BEEF);
-        cpu.execute(&mut bus, DecodedInstruction::Lh {
+        cpu.execute(&mut bus, Instruction::Lh {
             rd: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1681,7 +1686,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0x2000);
         set(&mut cpu, gpr::R2, 0xDEAD_BEEF);
-        cpu.execute(&mut bus, DecodedInstruction::Lw {
+        cpu.execute(&mut bus, Instruction::Lw {
             rd: r(gpr::R2),
             base: r(gpr::R1),
             offset: 0,
@@ -1697,7 +1702,7 @@ mod instruction_unit_tests {
     fn jmp_adds_signed_offset_to_current_pc() {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
-        cpu.execute(&mut bus, DecodedInstruction::Jmp { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::Jmp { offset: 0x20 });
         assert_eq!(pc(&cpu), 0x120);
     }
 
@@ -1705,7 +1710,7 @@ mod instruction_unit_tests {
     fn jmp_accepts_negative_offset() {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
-        cpu.execute(&mut bus, DecodedInstruction::Jmp { offset: -4 });
+        cpu.execute(&mut bus, Instruction::Jmp { offset: -4 });
         assert_eq!(pc(&cpu), 0x0FC);
     }
 
@@ -1713,7 +1718,7 @@ mod instruction_unit_tests {
     fn call_saves_current_pc_to_r15_then_jumps() {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
-        cpu.execute(&mut bus, DecodedInstruction::Call { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::Call { offset: 0x20 });
         assert_eq!(get(&cpu, gpr::R15), 0x100);
         assert_eq!(pc(&cpu), 0x120);
     }
@@ -1722,7 +1727,7 @@ mod instruction_unit_tests {
     fn jr_loads_pc_from_target_register() {
         let (mut bus, mut cpu) = test_harness();
         set(&mut cpu, gpr::R1, 0xCAFE_BABE);
-        cpu.execute(&mut bus, DecodedInstruction::Jr { target: r(gpr::R1) });
+        cpu.execute(&mut bus, Instruction::Jr { target: r(gpr::R1) });
         assert_eq!(pc(&cpu), 0xCAFE_BABE);
     }
 
@@ -1731,7 +1736,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
         set(&mut cpu, gpr::R1, 0xCAFE_BABE);
-        cpu.execute(&mut bus, DecodedInstruction::Jalr {
+        cpu.execute(&mut bus, Instruction::Jalr {
             rd: r(gpr::R2),
             target: r(gpr::R1),
         });
@@ -1744,7 +1749,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
         cpu.creg.update_sr_flags(false, true, false, false, false);
-        cpu.execute(&mut bus, DecodedInstruction::BfEq { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::BfEq { offset: 0x20 });
         assert_eq!(pc(&cpu), 0x120);
     }
 
@@ -1753,7 +1758,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
         cpu.creg.update_sr_flags(false, false, false, false, false);
-        cpu.execute(&mut bus, DecodedInstruction::BfEq { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::BfEq { offset: 0x20 });
         assert_eq!(pc(&cpu), 0x100);
     }
 
@@ -1762,7 +1767,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
         cpu.creg.update_sr_flags(false, false, true, false, false);
-        cpu.execute(&mut bus, DecodedInstruction::BfLt { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::BfLt { offset: 0x20 });
         assert_eq!(pc(&cpu), 0x120);
     }
 
@@ -1771,7 +1776,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
         cpu.creg.update_sr_flags(false, false, true, false, true);
-        cpu.execute(&mut bus, DecodedInstruction::BfGe { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::BfGe { offset: 0x20 });
         assert_eq!(pc(&cpu), 0x120);
     }
 
@@ -1780,7 +1785,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
         cpu.creg.update_sr_flags(false, false, false, false, false);
-        cpu.execute(&mut bus, DecodedInstruction::BfLtu { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::BfLtu { offset: 0x20 });
         assert_eq!(pc(&cpu), 0x120);
     }
 
@@ -1789,7 +1794,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
         cpu.creg.update_sr_flags(false, false, false, true, false);
-        cpu.execute(&mut bus, DecodedInstruction::BfGeu { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::BfGeu { offset: 0x20 });
         assert_eq!(pc(&cpu), 0x120);
     }
 
@@ -1798,7 +1803,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
         cpu.creg.update_sr_flags(true, false, false, false, false);
-        cpu.execute(&mut bus, DecodedInstruction::BfEs { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::BfEs { offset: 0x20 });
         assert_eq!(pc(&cpu), 0x120);
     }
 
@@ -1807,7 +1812,7 @@ mod instruction_unit_tests {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x100);
         cpu.creg.update_sr_flags(false, false, false, false, false);
-        cpu.execute(&mut bus, DecodedInstruction::BfEc { offset: 0x20 });
+        cpu.execute(&mut bus, Instruction::BfEc { offset: 0x20 });
         assert_eq!(pc(&cpu), 0x120);
     }
 
@@ -1817,7 +1822,7 @@ mod instruction_unit_tests {
         set_pc(&mut cpu, 0x100);
         set(&mut cpu, gpr::R1, 0x1234_5678);
         set(&mut cpu, gpr::R2, 0x1234_5678);
-        cpu.execute(&mut bus, DecodedInstruction::BEq {
+        cpu.execute(&mut bus, Instruction::BEq {
             ra: r(gpr::R1),
             rb: r(gpr::R2),
             offset: 0x20,
@@ -1831,7 +1836,7 @@ mod instruction_unit_tests {
         set_pc(&mut cpu, 0x100);
         set(&mut cpu, gpr::R1, 0xFFFF_FFFF);
         set(&mut cpu, gpr::R2, 0);
-        cpu.execute(&mut bus, DecodedInstruction::BLt {
+        cpu.execute(&mut bus, Instruction::BLt {
             ra: r(gpr::R1),
             rb: r(gpr::R2),
             offset: 0x20,
@@ -1845,7 +1850,7 @@ mod instruction_unit_tests {
         set_pc(&mut cpu, 0x100);
         set(&mut cpu, gpr::R1, 0);
         set(&mut cpu, gpr::R2, 0xFFFF_FFFF);
-        cpu.execute(&mut bus, DecodedInstruction::BLtu {
+        cpu.execute(&mut bus, Instruction::BLtu {
             ra: r(gpr::R1),
             rb: r(gpr::R2),
             offset: 0x20,
