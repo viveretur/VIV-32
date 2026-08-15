@@ -281,11 +281,7 @@ fn decode_x(raw: u32) -> Result<Instruction, DecodeError> {
     match sysop {
         sysop::NOP => Ok(Instruction::Nop),
         sysop::HALT => Ok(Instruction::Halt),
-        sysop::TRAP => {
-            let ss = 32 - x::PAYLOAD_WIDTH;
-            let offset = ((payload as i32) << ss) >> (ss - 2); // Branch offsets are SHL2.
-            Ok(Instruction::SoftwareTrap { imm: offset })
-        }
+        sysop::TRAP => Ok(Instruction::SoftwareTrap { imm: payload }),
         sysop::SYSCALL => Ok(Instruction::SystemCall),
         sysop::IRET => Ok(Instruction::IRet),
         sysop::EI => Ok(Instruction::EI),
@@ -474,7 +470,7 @@ mod tests {
     decode_case!(
         decodes_software_trap,
         enc_x(spec::sysop::TRAP, 0x7A9, 0, 0),
-        Instruction::SoftwareTrap { imm: 0x1EA4 }
+        Instruction::SoftwareTrap { imm: 0x7A9 }
     );
 
     decode_case!(

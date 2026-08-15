@@ -897,8 +897,8 @@ mod instruction_unit_tests {
     fn software_trap_raises_trap_with_imm_edata() {
         let (mut bus, mut cpu) = test_harness();
         set_pc(&mut cpu, 0x204);
-        cpu.execute(&mut bus, Instruction::SoftwareTrap { imm: -4 });
-        assert_exception(&cpu, ExceptionCause::SoftwareTrap, 0xFFFF_FFFC);
+        cpu.execute(&mut bus, Instruction::SoftwareTrap { imm: 0xFFC });
+        assert_exception(&cpu, ExceptionCause::SoftwareTrap, 0xFFC);
         assert_eq!(cpu.creg.read_register(Creg::EPC), 0x204);
     }
 
