@@ -1,0 +1,220 @@
+\section{VIV Object Format}
+\label{sec:toolchain-object-format}
+
+A VIV object file is the relocatable output produced by \texttt{viv32-asm} and
+consumed by \texttt{viv32-ld}. Object files use the extension \texttt{.vo}.
+
+A VIV object file contains three logical regions:
+
+\begin{description}
+    \item[Bytecode] The raw object-local bytes emitted by the assembler.
+    \item[Symbol table] The object-local symbol definitions produced by labels.
+    \item[Relocation table] The symbolic patches that must be applied by the linker.
+\end{description}
+
+The bytecode region is opaque. It may contain instructions, data, string literals,
+zero padding, or any other emitted bytes. Relocation metadata is not embedded in the
+bytecode stream. Instead, relocation records refer to byte offsets within the bytecode
+region.
+
+\subsection{Object-local addresses}
+
+All offsets stored in a VIV object file are object-local byte offsets. The assembler
+does not assign final executable addresses. Final addresses are assigned by the linker
+after all input objects have been placed.
+
+For example, a symbol recorded at object-local offset \texttt{0x00000100} does not
+necessarily appear at final executable address \texttt{0x00000100}. If the linker
+places the object at final base address \texttt{0x00000400}, the symbol's final
+address is \texttt{0x00000500}.
+
+\subsection{Object alignment}
+
+The bytecode region of each VIV object is padded to a four-byte boundary. Padding bytes
+are emitted as zeroes unless the assembler is padding executable text, in which case it
+may emit \texttt{nop} instructions where appropriate.
+
+This rule ensures that when \texttt{viv32-ld} places objects consecutively, the first
+byte of each object begins at a word-aligned address. Individual labels and directives
+remain the assembler's responsibility: instruction labels must be word-aligned, halfword
+data must be halfword-aligned where required, and byte data requires no additional
+alignment.
+
+\subsection{File structure}
+
+The initial VIV object format is designed to be simple and inspectable. Metadata is
+stored before the raw bytecode blob. The bytecode blob is preceded by an explicit
+length, so it may contain arbitrary byte values.
+
+The logical structure is:
+
+\begin{verbatim}
+magic/version
+symbol table
+relocation table
+bytecode length
+bytecode bytes
+\end{verbatim}
+
+The exact textual form is:
+
+\begin{verbatim}
+VIVO 1
+
+SYMBOLS <count>
+<offset> <name>
+...
+
+RELOCATIONS <count>
+<patch_offset> <symbol> <addend> <base> <sign> <value_shift> <width> <field_shift>
+...
+
+BYTES <byte_count>
+<raw bytecode bytes follow>
+\end{verbatim}
+
+The \texttt{VIVO} header identifies the file as a VIV object file. The version number
+allows future incompatible revisions of the object format.
+
+\subsection{Symbol table}
+
+The symbol table records labels defined by the assembled source file. Each symbol row
+has the following form:
+
+\begin{verbatim}
+<offset> <name>
+\end{verbatim}
+
+The fields are:
+
+\begin{description}
+    \item[\texttt{offset}] The object-local byte offset at which the symbol is defined.
+    \item[\texttt{name}] The object-level symbol name.
+\end{description}
+
+Symbol offsets are written as hexadecimal byte offsets.
+
+By default, assembler labels are local to the object file. The assembler may mangle
+local names so that they cannot collide with local names from other object files.
+Symbols declared with \texttt{.nomangle} are recorded using their source-level name and
+are visible to other object files during linking.
+
+\subsection{Relocation table}
+
+The relocation table records symbolic references that cannot be fully resolved by the
+assembler. Each relocation row describes how the linker should compute a value and
+insert that value into the bytecode blob.
+
+Each relocation row has the following form:
+
+\begin{verbatim}
+<patch_offset> <symbol> <addend> <base> <sign> <value_shift> <width> <field_shift>
+\end{verbatim}
+
+The fields are:
+
+\begin{description}
+    \item[\texttt{patch\_offset}] Object-local byte offset of the encoded word or data
+    item to patch.
+
+    \item[\texttt{symbol}] Symbol whose final address is required.
+
+    \item[\texttt{addend}] Signed adjustment added to the resolved symbol address before
+    encoding.
+
+    \item[\texttt{base}] Relocation base. This is either \texttt{abs} or \texttt{rel}.
+
+    \item[\texttt{sign}] Field interpretation. This is either \texttt{u} for unsigned
+    or \texttt{s} for signed.
+
+    \item[\texttt{value\_shift}] Number of bits to shift the computed value right before
+    insertion.
+
+    \item[\texttt{width}] Width of the encoded field in bits.
+
+    \item[\texttt{field\_shift}] Bit position of the encoded field within the patched
+    word.
+\end{description}
+
+The relocation row is intentionally instruction-agnostic. The assembler understands
+the instruction encoding and emits the appropriate relocation parameters. The linker
+does not need to know which instruction or directive produced the relocation.
+
+\subsection{Relocation calculation}
+
+For an absolute relocation, the linker computes:
+
+\begin{verbatim}
+value = symbol_address + addend
+\end{verbatim}
+
+For a relative relocation, the linker computes:
+
+\begin{verbatim}
+value = symbol_address + addend - patch_address
+\end{verbatim}
+
+where \texttt{patch\_address} is the final executable address corresponding to
+\texttt{patch\_offset}.
+
+After computing the relocation value, the linker applies \texttt{value\_shift}:
+
+\begin{verbatim}
+encoded_value = value >> value_shift
+\end{verbatim}
+
+The linker then checks that the shifted value fits in \texttt{width} bits using the
+specified signedness, masks the value to the requested width, shifts it left by
+\texttt{field\_shift}, and inserts it into the patched word.
+
+Alignment and semantic validity are the responsibility of the assembler. For example,
+the assembler is responsible for ensuring that instruction labels are suitably aligned
+and for choosing the appropriate relocation parameters for branch and jump
+instructions.
+
+\subsection{Relative relocation addends}
+
+VIV-32 PC-relative branch and jump instructions encode offsets relative to the
+instruction following the current instruction. The linker does not need to know this
+architectural rule. Instead, the assembler records it using the relocation addend.
+
+For example, a VIV-32 jump instruction at \texttt{patch\_address} requires:
+
+\begin{verbatim}
+target - (patch_address + 4)
+\end{verbatim}
+
+The assembler emits a relative relocation with an addend of \texttt{-4}:
+
+\begin{verbatim}
+target - patch_address - 4
+\end{verbatim}
+
+Thus the linker only applies the generic relative relocation rule.
+
+\subsection{Example}
+
+A simplified VIV object file may look like:
+
+\begin{verbatim}
+VIVO 1
+
+SYMBOLS 2
+00000080 _start
+00000100 local_message
+
+RELOCATIONS 2
+00000000 _start       -4 rel s 2 26 0
+00000088 local_message 0 abs u 0 15 8
+
+BYTES 00000120
+<raw bytecode bytes follow>
+\end{verbatim}
+
+The first relocation patches a PC-relative jump field. The assembler has encoded the
+VIV-32 next-instruction-relative rule using the \texttt{-4} addend and has requested a
+right shift of two bits for the word-scaled encoded offset.
+
+The second relocation patches an absolute unsigned field with the final address of
+\texttt{local\_message}. The linker does not need to know which instruction or
+directive contains the field; it only applies the relocation record.

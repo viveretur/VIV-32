@@ -9,3 +9,22 @@ symbols are recorded for the linker when their final value depends on object pla
 The linker combines objects in the order supplied on the command line, assigns each
 object a final base address, resolves non-mangled symbols, applies relocations, and
 writes the final flat binary image.
+
+\subsection{VIV object files}
+
+The assembler does not emit a final executable image directly. Instead, it emits a
+VIV object file, using the \texttt{.vo} format described in
+%\cref{sec:toolchain-object-format}%
+. A VIV object file contains object-local bytecode,
+a symbol table, and a relocation table. The bytecode region is opaque and may contain
+instructions, data, strings, and padding. Symbol and relocation records describe how
+the linker should resolve symbolic references once final object placement is known.
+
+\subsection{Linking}
+
+The \texttt{viv32-ld} linker combines one or more VIV object files into a final flat
+binary image. Input object files are laid out in the order supplied on the command
+line. This ordering is significant: early objects may contain reset vectors,
+interrupt vectors, or startup code that must appear before later program code. The
+linker assigns each object a final base address, resolves non-mangled symbols, applies
+relocation records, and writes the final executable byte stream.

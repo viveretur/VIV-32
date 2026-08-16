@@ -1,0 +1,88 @@
+\section{Linker}
+\label{sec:toolchain-linker}
+
+The \texttt{viv32-ld} tool links one or more VIV object files into a final flat binary
+image.
+
+The linker consumes \texttt{.vo} files produced by \texttt{viv32-asm}. It assigns final
+addresses, resolves symbols, applies relocation records, and emits executable
+bytecode suitable for loading into a VIV-32 machine.
+
+\subsection{Input order}
+
+Input file order is authoritative. Object files are placed into the final output image
+in the order supplied on the command line.
+
+For example:
+
+\begin{verbatim}
+viv32-ld vectors.vo crt0.vo main.vo serial.vo -o program.bin
+\end{verbatim}
+
+places \texttt{vectors.vo} first, followed by \texttt{crt0.vo},
+\texttt{main.vo}, and \texttt{serial.vo}.
+
+This allows startup code, reset vectors, and interrupt vectors to be placed at the
+beginning of the program without requiring a special entry-point convention or linker
+script in the initial toolchain.
+
+\subsection{Object placement}
+
+Each input object is assigned a final base address. The first object is placed at the
+start of the output image. Each following object is placed after the bytes of the
+previous object.
+
+All symbols defined in an object are adjusted by that object's final base address:
+
+\begin{verbatim}
+final_symbol_address = object_base + symbol_offset
+\end{verbatim}
+
+where \texttt{symbol\_offset} is the object-local offset recorded in the symbol table.
+
+Object files are placed at four-byte aligned output addresses. If an object's bytecode
+length is not a multiple of four, the linker advances the next object's base address to
+the next four-byte boundary. The padding is not a symbol-bearing region and is not
+addressable through the source object.
+
+\subsection{Symbol resolution}
+
+The linker builds a final symbol table from the symbols provided by all input objects.
+
+Local symbols are private to their object file. They may be used by relocations within
+the same object but are not visible to other objects.
+
+Non-mangled symbols are placed in the global linker namespace. They may be referenced
+by relocations in other objects. Multiple definitions of the same non-mangled symbol
+are an error.
+
+A relocation that refers to an undefined symbol is an error.
+
+\subsection{Relocation application}
+
+After object placement and symbol resolution, the linker applies each relocation record
+to the output byte stream.
+
+The linker does not interpret VIV-32 instructions. It follows the relocation metadata
+provided by the assembler. Each relocation specifies:
+
+\begin{itemize}
+    \item which byte offset to patch,
+    \item which symbol to resolve,
+    \item which addend to apply,
+    \item whether the value is absolute or relative,
+    \item whether the encoded field is signed or unsigned,
+    \item how far to shift the value right before insertion,
+    \item how wide the encoded field is,
+    \item and where the encoded field is located within the patched word.
+\end{itemize}
+
+If the computed value does not fit in the specified field width, linking fails.
+
+\subsection{Output}
+
+The linker emits a flat binary image. The output contains only executable bytes and
+data bytes. Symbol tables and relocation tables are not included in the final binary.
+
+The resulting file may be loaded directly into a VIV-32 emulator, virtual machine, or
+future hardware implementation according to the configured memory map.
