@@ -1,0 +1,11 @@
+\section{Overview}
+\subsection{Relocatable object model}
+
+The assembler does not assign final executable addresses. Each source file is assembled
+into a relocatable object containing object-local bytes, symbol definitions, and
+relocation records. Labels define object-local offsets. References to address-bearing
+symbols are recorded for the linker when their final value depends on object placement.
+
+The linker combines objects in the order supplied on the command line, assigns each
+object a final base address, resolves non-mangled symbols, applies relocations, and
+writes the final flat binary image.

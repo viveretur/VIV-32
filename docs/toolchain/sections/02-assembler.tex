@@ -1,0 +1,354 @@
+\section{Assembler}
+\label{sec:toolchain-assembler}
+
+The \texttt{viv32-asm} tool translates a VIV-32 assembly source into a relocatable object
+file, suitable for linking with \texttt{viv32-ld}.
+Instruction encodings and architectural instruction semantics are defined by the VIV-32
+architecture specification; this section only describes assembler-level syntax, labels,
+sections, directives, and symbol resolution.
+
+\subsection{Source format}
+
+Assembly source is line-oriented. Each non-empty line may contain a section declaration,
+a label, a directive, an instruction, or a comment.
+A label may appear on its own line or before an instruction or directive on the same line.
+
+Comments begin with \texttt{;} and continue to the end of the line.
+
+\begin{verbatim}
+; This is a comment
+add $1, $2, $3
+\end{verbatim}
+
+Whitespace is insignificant except where required to separate tokens.
+
+\subsection{Case sensitivity}
+
+Assembly source is case-insensitive. Instruction mnemonics, directives, register names,
+control register names, section names, and symbol names may be written in upper case,
+lower case, or mixed case.
+
+The assembler normalises symbol names before recording definitions and references.
+Consequently, the following labels refer to the same symbol name:
+
+\begin{verbatim}
+loop:
+LOOP:
+Loop:
+\end{verbatim}
+
+Defining more than one label whose names differ only by case is an error.
+
+\subsection{Registers}
+
+General-purpose registers are written with a leading dollar sign:
+
+\begin{verbatim}
+$0
+$1
+$15
+\end{verbatim}
+
+Control registers are written with a leading percent sign and their architectural name:
+
+\begin{verbatim}
+%pc
+%sr
+%evbase
+%ecause
+%epc
+%esr
+%edata
+\end{verbatim}
+
+\subsection{Sections}
+
+The supported sections are:
+
+\begin{description}
+    \item[\texttt{.text}] Executable instructions.
+    \item[\texttt{.rodata}] Emitted read-only data, such as strings and lookup tables.
+    Labels in this section define address-bearing symbols.
+    \item[\texttt{.data}] Emitted initialised mutable data.
+    Labels in this section define address-bearing symbols.
+    \item[\texttt{.bss}] Zero-initialised reserved storage.
+    Labels in this section define address-bearing symbols.
+\end{description}
+
+Constants declared with \texttt{.const} are not part of any section and are not emitted.
+
+In the initial relocatable object format, sections primarily classify emitted content.
+The linker preserves object order as provided on the command line. Future linkers may
+use section information for more sophisticated layout.
+
+\subsection{Labels, symbols, and name mangling}
+
+A label defines a symbol at the current assembly address. Labels are written as an
+identifier followed by a colon:
+
+\begin{verbatim}
+start:
+loop:
+message:
+\end{verbatim}
+
+Labels may be used as operands where an address or relative branch target is required.
+The assembler marks label declarations, use, and mangling. Labels are mangled by
+default, using a file-unique identifier.
+
+Shared labels can be indicated with \texttt{.nomangle} to prevent mangling, allowing
+multiple files access to the labeled item.
+
+Symbol names must begin with a letter or underscore, followed by zero or more letters,
+digits, or underscores.
+
+\begin{verbatim}
+valid_label:
+_valid_label:
+label_1:
+
+\end{verbatim}
+
+\subsubsection{\texttt{.nomangle}}
+
+By default, labels are local to the assembled object. This allows separate assembly
+files to use common internal label names such as \texttt{loop}, \texttt{done}, or
+\texttt{error} without creating linker-level name conflicts.
+
+The \texttt{.nomangle} directive marks a symbol name as externally visible. A
+non-mangled symbol is placed in the global linker namespace and may be referenced by
+other assembled objects.
+
+The \texttt{.nomangle} directive must appear before the first use or definition of the
+named symbol in the source file. This allows the assembler to determine whether each
+symbol reference is object-local or linker-global when it is first encountered.
+
+\begin{verbatim}
+.nomangle print_string
+
+print_string:
+    ; function body
+\end{verbatim}
+
+A file that references an externally defined symbol should also mark that symbol as
+non-mangled:
+
+\begin{verbatim}
+.nomangle print_string
+
+    call print_string
+\end{verbatim}
+
+The directive does not emit bytes and does not define storage. It only controls how the
+assembler records the symbol name in the relocatable object. Whether the symbol is
+defined in the current object or resolved from another object is determined by the
+linker.
+
+\texttt{.nomangle} applies to address-bearing symbols only. Constants declared with
+\texttt{.const} are assembler-local substitutions and are not exported to the linker.
+
+\subsection{Constants and address-bearing symbols}
+
+The assembler distinguishes constants from address-bearing symbols.
+
+Constants are assembler-time numeric substitutions. They do not occupy space in the
+output image and do not define storage. A constant is declared with \texttt{.const}:
+
+\begin{verbatim}
+.const SERIAL_DATA,    0xFFFF0000
+.const SERIAL_CONTROL, 0xFFFF0004
+.const SERIAL_ENABLE,  0x00000001
+.const SERIAL_TX_EN,   0x00000002
+\end{verbatim}
+
+Constant values must be unsigned hexadecimal integer literals. When a constant is used
+as an operand, the assembler substitutes its value directly into the instruction or
+directive being encoded.
+
+\begin{verbatim}
+lli $2, SERIAL_ENABLE
+sw  $2, [$1, 0]
+\end{verbatim}
+
+A label, by contrast, defines an address-bearing symbol. Labels mark locations in
+sections such as \texttt{.text}, \texttt{.rodata}, \texttt{.data}, or \texttt{.bss}.
+When a label is used, the assembler or linker resolves it as an address or as a
+PC-relative offset, depending on the instruction or directive.
+
+\begin{verbatim}
+.rodata:
+message:
+    .asciz "Hello World!\n"
+
+.text:
+    li $2, message
+\end{verbatim}
+
+In this example, \texttt{message} is not a constant. It refers to the address of data
+stored in the output image.
+
+\subsection{Directives}
+
+Assembler directives begin with a period.
+
+\subsubsection{\texttt{.org}}
+
+The \texttt{.org} directive sets the current object-local assembly offset.
+
+\begin{verbatim}
+.org 0x00000100
+\end{verbatim}
+
+If the new offset is greater than the current object-local offset, the assembler emits
+zero padding within the relocatable object. If the new offset is less than the current
+object-local offset, assembly fails. Final executable addresses are assigned by
+\texttt{viv32-ld}.
+
+\subsubsection{\texttt{.byte}}
+
+The \texttt{.byte} directive emits one or more byte values.
+
+\begin{verbatim}
+.byte 0x48, 0x65, 0x6C, 0x6C, 0x6F
+\end{verbatim}
+
+Each value must fit in 8 bits.
+
+\subsubsection{\texttt{.word}}
+
+The \texttt{.word} directive emits one or more 32-bit words in big-endian byte order.
+
+\begin{verbatim}
+.word 0x12345678
+.word start
+\end{verbatim}
+
+Each value must fit in 32 bits after symbol resolution.
+
+\subsubsection{\texttt{.ascii}}
+
+The \texttt{.ascii} directive emits the bytes of a string literal without a terminating
+zero byte.
+
+\begin{verbatim}
+.ascii "Hello"
+\end{verbatim}
+
+\subsubsection{\texttt{.asciz}}
+
+The \texttt{.asciz} directive emits the bytes of a string literal followed by a zero
+terminator.
+
+\begin{verbatim}
+.asciz "Hello World!\n"
+\end{verbatim}
+
+\subsubsection{\texttt{.space}}
+
+The \texttt{.space} directive reserves a number of zero-filled bytes.
+
+\begin{verbatim}
+.space 64
+\end{verbatim}
+
+\subsection{Instruction operands}
+
+The canonical instruction format uses comma-separated operands:
+
+\begin{verbatim}
+add  $1, $2, $3
+addi $1, $2, 4
+\end{verbatim}
+
+Memory operands are written using square brackets. The base register is listed first,
+followed by the signed byte offset.
+
+\begin{verbatim}
+lw $1, [$2, 0]
+sw $3, [$4, -4]
+\end{verbatim}
+
+The brackets are a source-level aid for readability. The underlying instruction format
+contains the register and offset fields directly.
+
+\subsection{Immediates and numeric literals}
+
+Decimal and hexadecimal integer literals are supported.
+
+\begin{verbatim}
+42
+-4
+0x1234
+0xFFFF0000
+\end{verbatim}
+
+Hexadecimal literals use the \texttt{0x} prefix. Signed offsets are normally written in
+decimal source form, while bit patterns, masks, addresses, and immediate-construction
+values are normally written in hexadecimal.
+
+\subsection{Branch and jump symbols}
+
+Branch and jump instructions may use either numeric offsets or labels.
+
+\begin{verbatim}
+loop:
+    addi $1, $1, -1
+    b.ne $1, $0, loop
+\end{verbatim}
+
+VIV-32 PC-relative control-flow offsets are relative to the instruction following the
+branch or jump.
+When a label is used, the assembler records the reference. If the target address is not
+final at assembly time, the object contains a relocation record. The linker computes the
+final PC-relative offset.
+
+The resulting offset must be aligned and must fit in the target instruction's encoded
+offset field. If it does not, assembly fails.
+
+\subsection{Pseudo-instructions}
+
+Pseudo-instructions are expanded before object-local offsets are assigned, so each
+emitted item has a fixed size before relocation records are produced.
+
+Initial pseudo-instructions may include:
+
+\begin{description}
+    \item[\texttt{li}] Load a 32-bit immediate value or symbol address.
+    \item[\texttt{la}] Load the address of a symbol.
+    \item[\texttt{ret}] Return using the ABI-defined return-address register.
+\end{description}
+
+Pseudo-instruction expansion has fixed size. If a pseudo-instruction cannot be expanded
+unambiguously, assembly fails.
+
+\subsection{Example}
+
+\begin{verbatim}
+.text:
+.org 0x0                       ; The reset interrupt, also program entry.
+    jmp     _start             ; Jump past the interrupt vector table.
+
+.org 0x7C                      ; Final instruction of interrupt vector table,
+    halt                       ; All interrupts effectively nop until halt.
+_start:
+    lli     $1, 0x0003         ; Serial control mask to enable TX.
+    li      $2, 0xFFFF0200     ; Serial MMIO base address.
+    sw      $1, [$2, 4]        ; Apply serial control mask.
+
+loop:
+    lbu     $1, [$3, message]  ; Read the first byte of message, using $3==0
+                               ; as first index. Note the reversal of base and
+                               ; offset in this example enables fewer
+                               ; instructions.
+    b.eq    $1, $0, _end       ; Exit loop at end of message.
+    sb      $1, [$2, 0]        ; Send the byte to serial data buffer.
+    addi    $3, $3, 1          ; Increment our index $3.
+    jmp     loop
+
+_end:
+    halt
+
+.rodata:
+.org 0x0100
+message: .asciz "Hello World!\n"
+\end{verbatim}
