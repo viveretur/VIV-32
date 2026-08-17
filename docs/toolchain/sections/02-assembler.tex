@@ -1,11 +1,41 @@
 \section{Assembler}
 \label{sec:toolchain-assembler}
 
-The \texttt{viv32-asm} tool translates a VIV-32 assembly source into a relocatable object
-file, suitable for linking with \texttt{viv32-ld}.
+\section{Assembler}
+
+The \texttt{viv32-asm} tool translates VIV-32 assembly source into relocatable VIV
+object files (\texttt{.vo}), suitable for linking with \texttt{viv32-ld}.
+The assembler performs lexical analysis, pseudo-instruction
+expansion, constant substitution, instruction encoding, symbol collection, relocation
+generation, and object emission. It does not assign final executable addresses or
+resolve external symbols.
 Instruction encodings and architectural instruction semantics are defined by the VIV-32
 architecture specification; this section only describes assembler-level syntax, labels,
 sections, directives, and symbol resolution.
+
+The assembler processes a single source file per invocation:
+
+\begin{verbatim}
+viv32-asm input.s
+viv32-asm input.s -o output.vo
+\end{verbatim}
+
+If no output file is specified, the object file is written to the current working
+directory using the source filename with the extension changed to \texttt{.vo}. The
+\texttt{-o} option specifies an explicit output path.
+
+The assembler supports the following command-line options:
+
+\begin{description}
+    \item[\texttt{-o <file>}] Write the generated object file to the specified path.
+    \item[\texttt{-h}, \texttt{--help}] Display command-line usage information.
+    \item[\texttt{-V}, \texttt{--version}] Display assembler version information.
+\end{description}
+
+Parallel assembly is intentionally delegated to the build system. Since each source
+file is assembled independently, tools such as \texttt{make -j} may assemble multiple
+translation units concurrently without requiring any assembler-specific parallelisation
+support.
 
 \subsection{Source format}
 
@@ -245,11 +275,14 @@ terminator.
 
 \subsubsection{\texttt{.space}}
 
-The \texttt{.space} directive reserves a number of zero-filled bytes.
+The \texttt{.space} directive reserves a number of zero-filled bytes, with a
+specified alignment. E.g.:
 
 \begin{verbatim}
-.space 64
+.space 4, 64
 \end{verbatim}
+
+reserves 64 bytes with a 4-byte alignment.
 
 \subsection{Instruction operands}
 

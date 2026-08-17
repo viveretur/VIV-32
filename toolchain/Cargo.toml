@@ -5,6 +5,7 @@ members = [
     "crates/viv32-asm",
     "crates/viv32-dis",
     "crates/viv32-ld",
+    "crates/viv32-vo",
 ]
 
 [workspace.package]
@@ -17,6 +18,7 @@ readme = "README.md"
 
 [workspace.dependencies]
 viv32-isa = { path = "crates/viv32-isa" }
+viv32-vo = { path = "crates/viv32-vo" }
 
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }

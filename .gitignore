@@ -41,3 +41,6 @@ obj_dir/
 tmp/
 build/
 dist/
+
+# VIV-32 object files
+*.vo

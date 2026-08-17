@@ -1,12 +1,34 @@
 \section{Linker}
 \label{sec:toolchain-linker}
 
-The \texttt{viv32-ld} tool links one or more VIV object files into a final flat binary
-image.
+The \texttt{viv32-ld} tool combines one or more relocatable VIV object files
+(\texttt{.vo}) into a final flat executable image. The linker assigns final object
+addresses, resolves symbols, applies relocation records, and writes the
+resulting executable byte stream.
 
-The linker consumes \texttt{.vo} files produced by \texttt{viv32-asm}. It assigns final
-addresses, resolves symbols, applies relocation records, and emits executable
-bytecode suitable for loading into a VIV-32 machine.
+Input object files are processed in the order supplied on the command line. This order
+determines the layout of the final executable image and therefore forms part of the
+program definition.
+
+Typical usage is:
+
+\begin{verbatim}
+viv32-ld startup.vo main.vo library.vo
+viv32-ld startup.vo main.vo library.vo -o program.bin
+\end{verbatim}
+
+If no output file is specified, the linked binary is written to the current working
+directory using the default output filename.
+
+The linker supports the following command-line options:
+
+\begin{description}
+    \item[\texttt{-o <file>}] Write the linked executable to the specified path.
+    \item[\texttt{--map <file>}] Generate a linker map describing final object placement
+    and resolved symbol addresses.
+    \item[\texttt{-h}, \texttt{--help}] Display command-line usage information.
+    \item[\texttt{-V}, \texttt{--version}] Display linker version information.
+\end{description}
 
 \subsection{Input order}
 
@@ -49,11 +71,12 @@ addressable through the source object.
 
 The linker builds a final symbol table from the symbols provided by all input objects.
 
-Local symbols are private to their object file. They may be used by relocations within
-the same object but are not visible to other objects.
+All symbols are imported into a global namespace. Because of name mangling, only
+symbols marked with \texttt{.nomangle} retain their original name, so they can be resolved anywhere
+in the linking. Local symbols with their names mangled will only be relevant for their
+own sections, but exist in the global table for address calculations.
 
-Non-mangled symbols are placed in the global linker namespace. They may be referenced
-by relocations in other objects. Multiple definitions of the same non-mangled symbol
+Multiple definitions of the same non-mangled symbol
 are an error.
 
 A relocation that refers to an undefined symbol is an error.
