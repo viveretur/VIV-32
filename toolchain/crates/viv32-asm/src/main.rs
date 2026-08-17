@@ -194,6 +194,7 @@ impl State {
 
                     _ => {
                         println!("Unknown Instruction: {}", line);
+                        self.bytes.extend_from_slice(&[0u8; 4]);
                     }
                 }
             }
