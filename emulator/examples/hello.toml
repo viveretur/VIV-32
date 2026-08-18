@@ -2,7 +2,7 @@
 name = "ram"
 kind = "ram"
 base = 0
-size = 1024
+size = 8192
 image = "examples/hello.bin"
 image_base = 0
 

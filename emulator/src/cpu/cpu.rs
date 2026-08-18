@@ -101,7 +101,10 @@ impl Cpu {
 
         self.creg.advance_pc_word();
         match decode(instruction) {
-            Ok(decoded) => self.execute(bus, decoded),
+            Ok(decoded) => {
+                // println!("{:08X}: {:>20} {}", fetch_pc, decoded, self.gpr);
+                self.execute(bus, decoded);
+            }
             Err(_) => self
                 .creg
                 .raise_exception(ExceptionCause::IllegalInstruction, fetch_pc),

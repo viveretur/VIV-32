@@ -81,6 +81,7 @@ pub struct Relocation {
     pub value_shift: u8,
     pub width: u8,
     pub field_shift: u8,
+    pub bounds_check: u8,
 }
 
 impl Relocation {
@@ -93,6 +94,7 @@ impl Relocation {
         value_shift: u8,
         width: u8,
         field_shift: u8,
+        bounds_check: u8,
     ) -> Self {
         Self {
             patch_offset,
@@ -103,6 +105,7 @@ impl Relocation {
             value_shift,
             width,
             field_shift,
+            bounds_check,
         }
     }
 }
@@ -113,9 +116,9 @@ impl TryFrom<&str> for Relocation {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let fields: Vec<&str> = value.split_whitespace().collect();
 
-        if fields.len() != 8 {
+        if fields.len() != 9 {
             return Err(VoError::InvalidRelocation(format!(
-                "expected 8 fields, found {}: {value}",
+                "expected 9 fields, found {}: {value}",
                 fields.len()
             )));
         }
@@ -129,6 +132,7 @@ impl TryFrom<&str> for Relocation {
             value_shift: parse_u8(fields[5], "value_shift", value)?,
             width: parse_u8(fields[6], "width", value)?,
             field_shift: parse_u8(fields[7], "field_shift", value)?,
+            bounds_check: parse_u8(fields[8], "bounds_check", value)?,
         })
     }
 }
@@ -145,7 +149,7 @@ impl fmt::Display for Relocation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{:08X} {} {} {} {} {} {} {}",
+            "{:08X} {} {} {} {} {} {} {} {}",
             self.patch_offset,
             self.symbol,
             self.addend,
@@ -153,7 +157,8 @@ impl fmt::Display for Relocation {
             self.sign,
             self.value_shift,
             self.width,
-            self.field_shift
+            self.field_shift,
+            self.field_shift,
         )
     }
 }
@@ -184,7 +189,7 @@ fn parse_u8(field: &str, name: &str, row: &str) -> Result<u8, VoError> {
 
 #[test]
 fn relocation_round_trip() {
-    let row = "00000080 _start -4 rel s 2 26 0";
+    let row = "00000080 _start -4 rel s 2 26 0 1";
 
     let relocation = Relocation::try_from(row).unwrap();
 
@@ -196,6 +201,7 @@ fn relocation_round_trip() {
     assert_eq!(relocation.value_shift, 2);
     assert_eq!(relocation.width, 26);
     assert_eq!(relocation.field_shift, 0);
+    assert_eq!(relocation.bounds_check, 1);
 
     assert_eq!(relocation.to_string(), row);
 }

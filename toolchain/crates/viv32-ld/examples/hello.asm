@@ -9,22 +9,21 @@
 .nomangle serial_buffer_tx_byte
 .nomangle serial_tx
 
-; In case we ever want to load it
-.nomangle _start
-
 .org 0x7C                               ; Any interrupt will halt.
 _end:
     halt
 
 _start:
+    li      %sp, 1024                   ; Initialise the stack pointer
     call serial_enable_tx
     
-    la      $2, message_ptr             ; Loads pointer to  message's first byte
+    la      $8, message_ptr             ; Loads pointer to  message's first byte
+    lw      $8, [$8, 0]                 ; Loads the address of the message
 loop:
-    lbu     $1, [$2, 0]                 ; Load the byte into memory
+    lbu     $1, [$8, 0]                 ; Load the byte into memory
     b.eq    $1, $0, exit_loop           ; Exit loop at end of byte
     call    serial_buffer_tx_byte       ; Send the byte to the serial buffer
-    inc     $2                          ; Move to next byte of message
+    inc     $8                          ; Move to next byte of message
     jmp     loop
 
 exit_loop:
@@ -33,6 +32,5 @@ exit_loop:
     jmp _end
 
 .rodata:
-.org 0x0100
 message_ptr:  .uword message
 message:      .asciz "Hello World!\n"

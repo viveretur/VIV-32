@@ -55,6 +55,12 @@ impl Default for GprFile {
     }
 }
 
+impl std::fmt::Display for GprFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:08X?}", self.registers)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

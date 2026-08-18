@@ -119,25 +119,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 target = target - client;
             }
             target = target >> relocation.value_shift;
-            let (min, max) = match relocation.sign {
-                RelocationSign::Unsigned => {
-                    if relocation.width == 32 {
-                        (0_i64, u32::MAX as i64)
-                    } else {
-                        (0_i64, (1_i64 << relocation.width) - 1)
+            if relocation.bounds_check != 0 {
+                let (min, max) = match relocation.sign {
+                    RelocationSign::Unsigned => {
+                        if relocation.width == 32 {
+                            (0_i64, u32::MAX as i64)
+                        } else {
+                            (0_i64, (1_i64 << relocation.width) - 1)
+                        }
                     }
-                }
 
-                RelocationSign::Signed => (
-                    -(1_i64 << (relocation.width - 1)),
-                    (1_i64 << (relocation.width - 1)) - 1,
-                ),
-            };
-            if target < min || target > max {
-                return Err(Box::new(LinkerError::InvalidRange(format!(
-                    "Invalid range for width {} detected: {} vs {}..{}",
-                    relocation.width, target, min, max
-                ))));
+                    RelocationSign::Signed => (
+                        -(1_i64 << (relocation.width - 1)),
+                        (1_i64 << (relocation.width - 1)) - 1,
+                    ),
+                };
+                if target < min || target > max {
+                    return Err(Box::new(LinkerError::InvalidRange(format!(
+                        "Invalid range for width {} detected: {} vs {}..{}",
+                        relocation.width, target, min, max
+                    ))));
+                }
             }
             let mask: i64 = if relocation.width == 32 {
                 u32::MAX as i64
@@ -152,7 +154,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             let field_mask = (mask as u32) << relocation.field_shift;
             let replaced = (replacing & !field_mask) | relocated;
-            println!("Replacing {:08X} with {:08X}", replacing, replaced);
+            println!(
+                "Replacing {:08X} with {:08X} at {:08X}",
+                replacing, replaced, client
+            );
             object_file.bytes[client as usize..(client as usize) + 4]
                 .copy_from_slice(&replaced.to_be_bytes());
         } else {

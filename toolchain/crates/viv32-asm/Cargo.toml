@@ -14,4 +14,5 @@ viv32-isa.workspace = true
 viv32-vo.workspace = true
 anyhow.workspace = true
 clap.workspace = true
+nofmt.workspace = true
 uuid = { version = "1", features = ["v5"] }

@@ -183,9 +183,9 @@ impl std::fmt::Display for Instruction {
             }
 
             // Constant construction/U-type
-            Self::Lui { rd, imm16 } => out!("{:<8}${}, {}", "lui", rd, imm16),
-            Self::Lli { rd, imm16 } => out!("{:<8}${}, {}", "lli", rd, imm16),
-            Self::Lhi { rd, imm16 } => out!("{:<8}${}, {}", "lhi", rd, imm16),
+            Self::Lui { rd, imm16 } => out!("{:<8}${}, {:04X}", "lui", rd, imm16),
+            Self::Lli { rd, imm16 } => out!("{:<8}${}, {:04X}", "lli", rd, imm16),
+            Self::Lhi { rd, imm16 } => out!("{:<8}${}, {:04X}", "lhi", rd, imm16),
 
             // Load/Store/M-type
             Self::Lb { rd, base, offset } => out!("{:<8}${}, [${}, {}]", "lb", rd, base, offset),

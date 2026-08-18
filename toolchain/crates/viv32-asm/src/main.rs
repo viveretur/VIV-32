@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use nofmt::pls;
 use std::{
     collections::HashMap,
     fs::File,
@@ -104,13 +105,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let input_file = File::open(&args.input)?;
 
     let constants = HashMap::from([
-        ("%pc".to_owned(), Creg::PC.to_string()),
-        ("%pc".to_owned(), Creg::SR.to_string()),
-        ("%pc".to_owned(), Creg::EPC.to_string()),
-        ("%pc".to_owned(), Creg::ESR.to_string()),
-        ("%pc".to_owned(), Creg::ECause.to_string()),
-        ("%pc".to_owned(), Creg::EData.to_string()),
-        ("%pc".to_owned(), Creg::EvBase.to_string()),
+        ("%zero".to_owned(), "0".to_owned()),
+        ("%fp".to_owned(), "13".to_owned()),
+        ("%sp".to_owned(), "14".to_owned()),
+        ("%lr".to_owned(), "15".to_owned()),
     ]);
 
     let mut state = State {
@@ -153,16 +151,17 @@ impl State {
         }
     }
 
-    #[rustfmt::skip]
     fn assemble(&mut self, input_file: File) -> ParseResult {
         let reader = BufReader::new(input_file);
 
         for line in reader.lines() {
             self.line_no += 1;
-            let line = line?;
-            if let Some(line) = strip_spaces_comments(&line) {
-                let parts = self.tokenize(&line);
+            let Some(line) = strip_spaces_comments(&line?) else {
+                continue;
+            };
+            let parts = self.tokenize(&line);
 
+            pls! {
                 match (
                     self.mode,
                     parts
@@ -181,16 +180,61 @@ impl State {
                     (_, [".nomangle", label]) => self.assemble_nomangle(label)?,
 
                     // Labels
-                    (Modes::Bss,    [label, ":", ".space", alignment, size]) => self.assemble_bss(label, alignment, size)?,
-                    (Modes::Data,   [label, ":", format, data, data2]) => self.assemble_data(label, format, data, data2)?,
+                    (Modes::Bss, [label, ":", ".space", alignment, size]) => self.assemble_bss(label, alignment, size)?,
+                    (Modes::Data, [label, ":", format, data, data2]) => self.assemble_data(label, format, data, data2)?,
                     (Modes::RoData, [label, ":", format, data, data2]) => self.assemble_data(label, format, data, data2)?,
-                    (Modes::Data,   [label, ":", format, data]) => self.assemble_data(label, format, data, "0")?,
+                    (Modes::Data, [label, ":", format, data]) => self.assemble_data(label, format, data, "0")?,
                     (Modes::RoData, [label, ":", format, data]) => self.assemble_data(label, format, data, "0")?,
-                    (Modes::Text,   [label, ":"]) => self.assemble_label(label)?,
+                    (Modes::Text, [label, ":"]) => self.assemble_label(label)?,
 
-                    // Control instructions
-                    (Modes::Text, ["nop"]) => self.bytes.extend_from_slice(&(encode(Instruction::Nop)?).to_be_bytes()),
-                    (Modes::Text, ["halt"]) => self.bytes.extend_from_slice(&(encode(Instruction::Halt)?).to_be_bytes()),
+                    // Control
+                    (Modes::Text, ["nop"]) => self.append_instruction(Instruction::Nop)?,
+                    (Modes::Text, ["halt"]) => self.append_instruction(Instruction::Halt)?,
+                    (Modes::Text, ["trap", imm]) => self.assemble_trap(imm)?,
+                    (Modes::Text, ["syscall"]) => self.append_instruction(Instruction::SystemCall)?,
+                    (Modes::Text, ["iret"]) => self.append_instruction(Instruction::IRet)?,
+                    (Modes::Text, ["ei"]) => self.append_instruction(Instruction::EI)?,
+                    (Modes::Text, ["di"]) => self.append_instruction(Instruction::DI)?,
+                    (Modes::Text, ["rdpc", rd]) => self.assemble_rdpc(rd)?,
+                    (Modes::Text, ["mrs", rd, cr]) => self.assemble_mrs(rd, cr)?,
+                    (Modes::Text, ["msr", cr, rs]) => self.assemble_msr(cr, rs)?,
+
+                    // Arithmetic
+                    (Modes::Text, ["add", rd, ra, rb]) => self.assemble_add(rd, ra, rb)?,
+                    (Modes::Text, ["addi", rd, ra, imm]) => self.assemble_addi(rd, ra, imm)?,
+
+                    // Load and Store
+                    (Modes::Text, ["lb",  rd, base, offset]) => self.assemble_m("lb", rd, base, offset)?,
+                    (Modes::Text, ["lbu", rd, base, offset]) => self.assemble_m("lbu",rd, base, offset)?,
+                    (Modes::Text, ["lh",  rd, base, offset]) => self.assemble_m("lh", rd, base, offset)?,
+                    (Modes::Text, ["lhu", rd, base, offset]) => self.assemble_m("lhu",rd, base, offset)?,
+                    (Modes::Text, ["lw",  rd, base, offset]) => self.assemble_m("lw", rd, base, offset)?,
+                    (Modes::Text, ["sb",  rd, base, offset]) => self.assemble_m("sb", rd, base, offset)?,
+                    (Modes::Text, ["sh",  rd, base, offset]) => self.assemble_m("sh", rd, base, offset)?,
+                    (Modes::Text, ["sw",  rd, base, offset]) => self.assemble_m("sw", rd, base, offset)?,
+
+                    // Constants
+                    (Modes::Text, ["lui", rd, imm]) => self.assemble_constant("lui", rd, imm)?,
+                    (Modes::Text, ["lli", rd, imm]) => self.assemble_constant("lli", rd, imm)?,
+                    (Modes::Text, ["lhi", rd, imm]) => self.assemble_constant("lhi", rd, imm)?,
+
+                    // Jump/Call
+                    (Modes::Text, ["jmp", label]) => self.assemble_jmp(label)?,
+                    (Modes::Text, ["call", label]) => self.assemble_call(label)?,
+                    (Modes::Text, ["jr", target]) => self.assemble_jr(target)?,
+                    (Modes::Text, ["jalr", rd, target]) => self.assemble_jalr(rd, target)?,
+
+                    // Branches
+                    (Modes::Text, [b, ra, rb, label]) if b.starts_with("b.") => self.assemble_b(b, ra, rb, label)?,
+                    (Modes::Text, [b, label]) if b.starts_with("bf.") => self.assemble_bf(b, label)?,
+
+                    // Pseudo-instructions
+                    (Modes::Text, ["clr", rd]) => self.assemble_addi(rd, "0", "0")?,
+                    (Modes::Text, ["inc", rd]) => self.assemble_addi(rd, rd, "1")?,
+                    (Modes::Text, ["dec", rd]) => self.assemble_addi(rd, rd, "-1")?,
+                    (Modes::Text, ["ret"]) => self.assemble_jr("15")?,
+                    (Modes::Text, ["li", rd, imm]) => self.assemble_li(rd, imm)?,
+                    (Modes::Text, ["la", rd, label]) => self.assemble_la(rd, label)?,
 
                     _ => {
                         println!("Unknown Instruction: {}", line);
@@ -201,6 +245,314 @@ impl State {
         }
 
         Ok(())
+    }
+
+    fn assemble_m(&mut self, m: &str, rds: &str, base: &str, offset: &str) -> ParseResult {
+        let rds = self.reg(rds)?;
+        let base = self.reg(base)?;
+        let offset = parse_signed_number(offset)?;
+        self.assert_range(offset as i64, -(1i64 << 14), (1i64 << 14) - 1)?;
+        pls! {
+            let instruction = match m {
+                "lb" => Instruction::Lb { rd: rds, base, offset },
+                "lbu" => Instruction::Lbu { rd: rds, base, offset },
+                "lh" => Instruction::Lh { rd: rds, base, offset },
+                "lhu" => Instruction::Lhu { rd: rds, base, offset },
+                "lw" => Instruction::Lw { rd: rds, base, offset },
+                "sb" => Instruction::Sb { rs: rds, base, offset },
+                "sh" => Instruction::Sh { rs: rds, base, offset },
+                "sw" => Instruction::Sw { rs: rds, base, offset },
+                _ => unreachable!(),
+            };
+        }
+        self.append_instruction(instruction)?;
+        Ok(())
+    }
+
+    fn assemble_constant(&mut self, ld: &str, rd: &str, imm: &str) -> ParseResult {
+        let rd = self.reg(rd)?;
+        let imm = parse_unsigned_number(imm)?;
+        if imm > u16::MAX as u32 {
+            return Err(ParseError::InvalidNumber(format!(
+                "{} too large for 16-bit field [{}:{}]",
+                imm, self.filename, self.line_no
+            )));
+        }
+        pls! {
+            let instruction = match ld {
+                "lui" => Instruction::Lui { rd, imm16: imm as u16 },
+                "lli" => Instruction::Lli { rd, imm16: imm as u16 },
+                "lhi" => Instruction::Lhi { rd, imm16: imm as u16 },
+                _ => unreachable!(),
+            };
+        }
+        self.append_instruction(instruction)?;
+        Ok(())
+    }
+
+    fn assemble_li(&mut self, rd: &str, imm: &str) -> ParseResult {
+        let rd = self.reg(rd)?;
+        let imm = parse_unsigned_number(imm)?;
+        pls! {
+            self.append_instruction(Instruction::Lli { rd, imm16: (imm & 0xFFFF) as u16 })?;
+            self.append_instruction(Instruction::Lhi { rd, imm16: (imm >> 16) as u16 })?;
+        }
+        Ok(())
+    }
+
+    fn assemble_la(&mut self, rd: &str, label: &str) -> ParseResult {
+        let rd = self.reg(rd)?;
+        self.mangle_name(label)?;
+        let mangled = self.mangles.get(label).cloned().unwrap();
+        self.relocations.push(Relocation {
+            patch_offset: self.bytes.len() as u32,
+            symbol: mangled.clone(),
+            addend: 0,
+            base: RelocationBase::Absolute,
+            sign: RelocationSign::Unsigned,
+            value_shift: 0,
+            width: 16,
+            field_shift: 4,
+            bounds_check: 0,
+        });
+        self.append_instruction(Instruction::Lli { rd, imm16: 0 })?;
+        self.relocations.push(Relocation {
+            patch_offset: self.bytes.len() as u32,
+            symbol: mangled,
+            addend: 0,
+            base: RelocationBase::Absolute,
+            sign: RelocationSign::Unsigned,
+            value_shift: 16,
+            width: 16,
+            field_shift: 4,
+            bounds_check: 0,
+        });
+        self.append_instruction(Instruction::Lhi { rd, imm16: 0 })?;
+        Ok(())
+    }
+
+    fn assemble_b(&mut self, b: &str, ra: &str, rb: &str, label: &str) -> ParseResult {
+        let ra = self.reg(ra)?;
+        let rb = self.reg(rb)?;
+        self.mangle_name(label)?;
+        let mangled = self.mangles.get(label).cloned().unwrap();
+        let instruction = match b {
+            "b.eq" => Instruction::BEq { ra, rb, offset: 0 },
+            "b.ne" => Instruction::BNe { ra, rb, offset: 0 },
+            "b.lt" => Instruction::BLt { ra, rb, offset: 0 },
+            "b.le" => Instruction::BLe { ra, rb, offset: 0 },
+            "b.gt" => Instruction::BGt { ra, rb, offset: 0 },
+            "b.ge" => Instruction::BGe { ra, rb, offset: 0 },
+            "b.ltu" => Instruction::BLtu { ra, rb, offset: 0 },
+            "b.leu" => Instruction::BLeu { ra, rb, offset: 0 },
+            "b.gtu" => Instruction::BGtu { ra, rb, offset: 0 },
+            "b.geu" => Instruction::BGeu { ra, rb, offset: 0 },
+            _ => {
+                return Err(ParseError::InvalidInstruction(format!(
+                    "Instruction unknown: {} [{}:{}]",
+                    b, self.filename, self.line_no
+                )));
+            }
+        };
+        self.relocations.push(Relocation {
+            patch_offset: self.bytes.len() as u32,
+            symbol: mangled,
+            addend: -4,
+            base: RelocationBase::Relative,
+            sign: RelocationSign::Signed,
+            value_shift: 2,
+            width: 14,
+            field_shift: 8,
+            bounds_check: 1,
+        });
+        self.append_instruction(instruction)?;
+        Ok(())
+    }
+
+    fn assemble_bf(&mut self, b: &str, label: &str) -> ParseResult {
+        self.mangle_name(label)?;
+        let mangled = self.mangles.get(label).cloned().unwrap();
+        let instruction = match b {
+            "bf.eq" => Instruction::BfEq { offset: 0 },
+            "bf.ne" => Instruction::BfNe { offset: 0 },
+            "bf.lt" => Instruction::BfLt { offset: 0 },
+            "bf.le" => Instruction::BfLe { offset: 0 },
+            "bf.gt" => Instruction::BfGt { offset: 0 },
+            "bf.ge" => Instruction::BfGe { offset: 0 },
+            "bf.ltu" => Instruction::BfLtu { offset: 0 },
+            "bf.leu" => Instruction::BfLeu { offset: 0 },
+            "bf.gtu" => Instruction::BfGtu { offset: 0 },
+            "bf.geu" => Instruction::BfGeu { offset: 0 },
+            "bf.cs" => Instruction::BfCs { offset: 0 },
+            "bf.cc" => Instruction::BfCc { offset: 0 },
+            "bf.vs" => Instruction::BfVs { offset: 0 },
+            "bf.vc" => Instruction::BfVc { offset: 0 },
+            "bf.es" => Instruction::BfEs { offset: 0 },
+            "bf.ec" => Instruction::BfEc { offset: 0 },
+            _ => {
+                return Err(ParseError::InvalidInstruction(format!(
+                    "Instruction unknown: {} [{}:{}]",
+                    b, self.filename, self.line_no
+                )));
+            }
+        };
+        self.relocations.push(Relocation {
+            patch_offset: self.bytes.len() as u32,
+            symbol: mangled,
+            addend: -4,
+            base: RelocationBase::Relative,
+            sign: RelocationSign::Signed,
+            value_shift: 2,
+            width: 22,
+            field_shift: 0,
+            bounds_check: 1,
+        });
+        self.append_instruction(instruction)?;
+        Ok(())
+    }
+
+    fn assemble_jmp(&mut self, label: &str) -> ParseResult {
+        self.mangle_name(label)?;
+        let mangled = self.mangles.get(label).cloned().unwrap();
+        self.relocations.push(Relocation {
+            patch_offset: self.bytes.len() as u32,
+            symbol: mangled,
+            addend: -4,
+            base: RelocationBase::Relative,
+            sign: RelocationSign::Signed,
+            value_shift: 2,
+            width: 26,
+            field_shift: 0,
+            bounds_check: 1,
+        });
+        self.append_instruction(Instruction::Jmp { offset: 0 })?;
+        Ok(())
+    }
+
+    fn assemble_call(&mut self, label: &str) -> ParseResult {
+        self.mangle_name(label)?;
+        let mangled = self.mangles.get(label).cloned().unwrap();
+        self.relocations.push(Relocation {
+            patch_offset: self.bytes.len() as u32,
+            symbol: mangled,
+            addend: -4,
+            base: RelocationBase::Relative,
+            sign: RelocationSign::Signed,
+            value_shift: 2,
+            width: 26,
+            field_shift: 0,
+            bounds_check: 1,
+        });
+        self.append_instruction(Instruction::Call { offset: 0 })?;
+        Ok(())
+    }
+
+    fn assemble_jr(&mut self, rd: &str) -> ParseResult {
+        let target = self.reg(rd)?;
+        self.append_instruction(Instruction::Jr { target })?;
+        Ok(())
+    }
+
+    fn assemble_jalr(&mut self, rd: &str, target: &str) -> ParseResult {
+        let rd = self.reg(rd)?;
+        let target = self.reg(target)?;
+        self.append_instruction(Instruction::Jalr { rd, target })?;
+        Ok(())
+    }
+
+    fn assemble_trap(&mut self, imm: &str) -> ParseResult {
+        let imm = parse_unsigned_number(imm)?;
+        self.assert_range(imm as i64, 0, (0x1 << 12) - 1)?;
+        self.append_instruction(Instruction::SoftwareTrap { imm })?;
+        Ok(())
+    }
+
+    fn assemble_rdpc(&mut self, rd: &str) -> ParseResult {
+        let rd = self.reg(rd)?;
+        self.append_instruction(Instruction::RdPc { rd })?;
+        Ok(())
+    }
+
+    fn assemble_mrs(&mut self, rd: &str, cr: &str) -> ParseResult {
+        let cr = match cr {
+            "%pc" => Creg::PC,
+            "%sr" => Creg::SR,
+            "%epc" => Creg::EPC,
+            "%esr" => Creg::ESR,
+            "%ecause" => Creg::ECause,
+            "%edata" => Creg::EData,
+            "%evbase" => Creg::EvBase,
+            _ => {
+                return Err(ParseError::InvalidName(format!(
+                    "Invalid creg: {} [{}:{}]",
+                    cr, self.filename, self.line_no
+                )));
+            }
+        };
+        let rd = self.reg(rd)?;
+        self.append_instruction(Instruction::Mrs { rd: rd, creg4: cr })?;
+        Ok(())
+    }
+
+    fn assemble_msr(&mut self, cr: &str, rs: &str) -> ParseResult {
+        let cr = match cr {
+            "%pc" => Creg::PC,
+            "%sr" => Creg::SR,
+            "%epc" => Creg::EPC,
+            "%esr" => Creg::ESR,
+            "%ecause" => Creg::ECause,
+            "%edata" => Creg::EData,
+            "%evbase" => Creg::EvBase,
+            _ => {
+                return Err(ParseError::InvalidName(format!(
+                    "Invalid creg: {} [{}:{}]",
+                    cr, self.filename, self.line_no
+                )));
+            }
+        };
+        let rs = self.reg(rs)?;
+        self.append_instruction(Instruction::Msr { creg4: cr, rs: rs })?;
+        Ok(())
+    }
+
+    fn assemble_add(&mut self, rd: &str, ra: &str, rb: &str) -> ParseResult {
+        let rd = self.reg(rd)?;
+        let ra = self.reg(ra)?;
+        let rb = self.reg(rb)?;
+        self.append_instruction(Instruction::Add { rd, ra, rb })?;
+        Ok(())
+    }
+
+    fn assemble_addi(&mut self, rd: &str, ra: &str, imm: &str) -> ParseResult {
+        let rd = self.reg(rd)?;
+        let ra = self.reg(ra)?;
+        let imm = parse_signed_number(imm)?;
+        self.assert_range(imm as i64, i16::MIN as i64, i16::MAX as i64)?;
+        self.append_instruction(Instruction::Addi {
+            rd,
+            ra,
+            imm: imm as u16 as u32,
+        })?;
+        Ok(())
+    }
+
+    fn append_instruction(&mut self, instruction: Instruction) -> ParseResult {
+        // println!("{:08X}: {}", self.bytes.len(), instruction);
+        self.bytes
+            .extend_from_slice(&encode(instruction)?.to_be_bytes());
+        Ok(())
+    }
+
+    fn reg(&mut self, value: &str) -> Result<u8, ParseError> {
+        let reg = parse_unsigned_number(value)?;
+        if reg > 0xF {
+            Err(ParseError::InvalidNumber(format!(
+                "Invalid register: {} [{}:{}]",
+                value, self.filename, self.line_no
+            )))
+        } else {
+            Ok(reg as u8)
+        }
     }
 
     fn add_constant(&mut self, name: &str, value: &str) -> ParseResult {
@@ -305,6 +657,7 @@ impl State {
                 value_shift: 0,
                 width: 32,
                 field_shift: 0,
+                bounds_check: 0,
             });
             0
         } else {

@@ -14,7 +14,8 @@ serial_enable_tx:
     lli     $1, SERIAL_TX_EN            ; Serial control mask to enable TX
     li      $2, SERIAL_ADDRESS          ; Serial MMIO base address
     sw      $1, [$2, 4]                 ; Apply serial control mask
-    sb      $0, [$0, serial_data]       ; Initialize serial buffer length to 0
+    la      $2, serial_data             ; Find the address of serial data
+    sb      $0, [$2, 0]                 ; Initialize serial buffer length to 0
     pop     $2, $1
     ret
 
@@ -28,14 +29,14 @@ serial_disable_tx:
 
 ; Byte to send should be in $1
 serial_buffer_tx_byte:
-    push    $2, $3
+    push    $2, $3, $4
     la      $2, serial_data             ; Load address of the bss serial buffer
     lb      $3, [$2, 0]                 ; Read the count out of the buffer
-    add     $3, $3, $2                  ; Find the last storage location
     inc     $3                          ; Calculate the new storage location
-    sb      $1, [$3, 0]                 ; Save the byte into the bss buffer
+    add     $4, $3, $2                  ; Find the last storage location
+    sb      $1, [$4, 0]                 ; Save the byte into the bss buffer
     sb      $3, [$2, 0]                 ; Save the increased length back
-    pop     $3, $2
+    pop     $4, $3, $2
     ret
 
 ; Iterates through the buffer, sending all bytes
