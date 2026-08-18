@@ -42,6 +42,7 @@ enum ParseError {
     ObjectError(VoError),
     IOError(std::io::Error),
     DataAlignmentError(String),
+    InvalidStringLiteral(String),
     InvalidNumber(String),
     EncodeError(EncodeError),
 }
@@ -74,6 +75,7 @@ impl std::fmt::Display for ParseError {
             ParseError::IOError(err) => write!(f, "{}", err),
             ParseError::DataAlignmentError(message) => write!(f, "{}", message),
             ParseError::InvalidNumber(message) => write!(f, "{}", message),
+            ParseError::InvalidStringLiteral(message) => write!(f, "{}", message),
             ParseError::EncodeError(err) => write!(f, "{:?}", err),
         }
     }
@@ -164,7 +166,7 @@ impl State {
             pls! {
                 match (
                     self.mode,
-                    parts
+                    parts?
                         .iter()
                         .map(String::as_str)
                         .collect::<Vec<_>>()
@@ -200,8 +202,38 @@ impl State {
                     (Modes::Text, ["msr", cr, rs]) => self.assemble_msr(cr, rs)?,
 
                     // Arithmetic
-                    (Modes::Text, ["add", rd, ra, rb]) => self.assemble_add(rd, ra, rb)?,
-                    (Modes::Text, ["addi", rd, ra, imm]) => self.assemble_addi(rd, ra, imm)?,
+                    (Modes::Text, ["add", rd, ra, rb]) => self.assemble_alu("add", rd, ra, rb)?,
+                    (Modes::Text, ["sub", rd, ra, rb]) => self.assemble_alu("sub", rd, ra, rb)?,
+                    (Modes::Text, ["and", rd, ra, rb]) => self.assemble_alu("and", rd, ra, rb)?,
+                    (Modes::Text, ["or", rd, ra, rb]) => self.assemble_alu("or", rd, ra, rb)?,
+                    (Modes::Text, ["xor", rd, ra, rb]) => self.assemble_alu("xor", rd, ra, rb)?,
+                    (Modes::Text, ["shl", rd, ra, rb]) => self.assemble_alu("shl", rd, ra, rb)?,
+                    (Modes::Text, ["shr", rd, ra, rb]) => self.assemble_alu("shr", rd, ra, rb)?,
+                    (Modes::Text, ["sar", rd, ra, rb]) => self.assemble_alu("sar", rd, ra, rb)?,
+                    (Modes::Text, ["neg", rd, ra]) => self.assemble_alu("neg", rd, ra, "0")?,
+                    (Modes::Text, ["not", rd, ra]) => self.assemble_alu("not", rd, ra, "0")?,
+                    (Modes::Text, ["cmp", ra, rb]) => self.assemble_alu("cmp", "0", ra, rb)?,
+                    (Modes::Text, ["addi", rd, ra, imm]) => self.assemble_alui("addi", rd, ra, imm)?,
+                    (Modes::Text, ["subi", rd, ra, imm]) => self.assemble_alui("subi", rd, ra, imm)?,
+                    (Modes::Text, ["andi", rd, ra, imm]) => self.assemble_alui("andi", rd, ra, imm)?,
+                    (Modes::Text, ["ori", rd, ra, imm]) => self.assemble_alui("ori", rd, ra, imm)?,
+                    (Modes::Text, ["xori", rd, ra, imm]) => self.assemble_alui("xori", rd, ra, imm)?,
+                    (Modes::Text, ["shli", rd, ra, imm]) => self.assemble_alui("shli", rd, ra, imm)?,
+                    (Modes::Text, ["shri", rd, ra, imm]) => self.assemble_alui("shri", rd, ra, imm)?,
+                    (Modes::Text, ["sari", rd, ra, imm]) => self.assemble_alui("sari", rd, ra, imm)?,
+                    (Modes::Text, ["cmpi", ra, imm]) => self.assemble_alui("xori", "0", ra, imm)?,
+
+                    // Bitwise
+                    (Modes::Text, ["btst", ra, imm]) => self.assemble_bits("btst", "0", ra, imm)?,
+                    (Modes::Text, ["bset", rd, ra, imm]) => self.assemble_bits("bset", rd, ra, imm)?,
+                    (Modes::Text, ["bclr", rd, ra, imm]) => self.assemble_bits("bclr", rd, ra, imm)?,
+                    (Modes::Text, ["btgl", rd, ra, imm]) => self.assemble_bits("btgl", rd, ra, imm)?,
+
+                    // Multiply/Divide
+                    (Modes::Text, ["mul", rd0, rd1, ra, rb]) => self.assemble_mul("mul", rd0, rd1, ra, rb)?,
+                    (Modes::Text, ["mulu", rd0, rd1, ra, rb]) => self.assemble_mul("mulu", rd0, rd1, ra, rb)?,
+                    (Modes::Text, ["div", rd0, rd1, ra, rb]) => self.assemble_mul("div", rd0, rd1, ra, rb)?,
+                    (Modes::Text, ["divu", rd0, rd1, ra, rb]) => self.assemble_mul("divu", rd0, rd1, ra, rb)?,
 
                     // Load and Store
                     (Modes::Text, ["lb",  rd, base, offset]) => self.assemble_m("lb", rd, base, offset)?,
@@ -229,12 +261,15 @@ impl State {
                     (Modes::Text, [b, label]) if b.starts_with("bf.") => self.assemble_bf(b, label)?,
 
                     // Pseudo-instructions
-                    (Modes::Text, ["clr", rd]) => self.assemble_addi(rd, "0", "0")?,
-                    (Modes::Text, ["inc", rd]) => self.assemble_addi(rd, rd, "1")?,
-                    (Modes::Text, ["dec", rd]) => self.assemble_addi(rd, rd, "-1")?,
+                    (Modes::Text, ["clr", rd]) => self.assemble_alu("and", rd, "0", "0")?,
+                    (Modes::Text, ["mov", rd, rs]) => self.assemble_alu("or", rd, rs, "0")?,
+                    (Modes::Text, ["inc", rd]) => self.assemble_alui("addi", rd, rd, "1")?,
+                    (Modes::Text, ["dec", rd]) => self.assemble_alui("subi", rd, rd, "1")?,
                     (Modes::Text, ["ret"]) => self.assemble_jr("15")?,
                     (Modes::Text, ["li", rd, imm]) => self.assemble_li(rd, imm)?,
                     (Modes::Text, ["la", rd, label]) => self.assemble_la(rd, label)?,
+                    (Modes::Text, ["push", regs @ ..]) => self.assemble_push(regs)?,
+                    (Modes::Text, ["pop", regs @ ..]) => self.assemble_pop(regs)?,
 
                     _ => {
                         println!("Unknown Instruction: {}", line);
@@ -244,6 +279,67 @@ impl State {
             }
         }
 
+        Ok(())
+    }
+
+    fn assemble_bits(&mut self, cmd: &str, rd: &str, ra: &str, imm: &str) -> ParseResult {
+        let rd = self.reg(rd)?;
+        let ra = self.reg(ra)?;
+        let imm = parse_unsigned_number(imm)?;
+        self.assert_range(imm as i64, 0, 31)?;
+        let imm = imm as u8;
+        let instruction = match cmd {
+            "btst" => Instruction::Btst { ra, imm },
+            "bset" => Instruction::Bset { rd, ra, imm },
+            "bclr" => Instruction::Bclr { rd, ra, imm },
+            "btgl" => Instruction::Btgl { rd, ra, imm },
+            _ => unreachable!(),
+        };
+        self.append_instruction(instruction)?;
+        Ok(())
+    }
+
+    fn assemble_mul(&mut self, cmd: &str, rd0: &str, rd1: &str, ra: &str, rb: &str) -> ParseResult {
+        let rd0 = self.reg(rd0)?;
+        let rd1 = self.reg(rd1)?;
+        let ra = self.reg(ra)?;
+        let rb = self.reg(rb)?;
+        let instruction = match cmd {
+            "mul" => Instruction::Mul { rd0, rd1, ra, rb },
+            "mulu" => Instruction::Mulu { rd0, rd1, ra, rb },
+            "div" => Instruction::Div { rd0, rd1, ra, rb },
+            "divu" => Instruction::Divu { rd0, rd1, ra, rb },
+            _ => unreachable!(),
+        };
+        self.append_instruction(instruction)?;
+        Ok(())
+    }
+
+    fn assemble_push(&mut self, regs: &[&str]) -> ParseResult {
+        for reg in regs {
+            let rs = self.reg(reg)?;
+            // %sp == r14
+            // subi %sp, %sp, 4
+            // sw $rs, [%sp, 0]
+            pls! {
+                self.append_instruction(Instruction::Subi { rd: 14, ra: 14, imm: 4 })?;
+                self.append_instruction(Instruction::Sw { rs, base: 14, offset: 0 })?;
+            }
+        }
+        Ok(())
+    }
+
+    fn assemble_pop(&mut self, regs: &[&str]) -> ParseResult {
+        for reg in regs {
+            let rd = self.reg(reg)?;
+            // %sp == r14
+            // lw $rs, [%sp, 0]
+            // addi %sp, %sp 4
+            pls! {
+                self.append_instruction(Instruction::Lw { rd, base: 14, offset: 0 })?;
+                self.append_instruction(Instruction::Addi { rd: 14, ra: 14, imm: 4 })?;
+            }
+        }
         Ok(())
     }
 
@@ -515,24 +611,49 @@ impl State {
         Ok(())
     }
 
-    fn assemble_add(&mut self, rd: &str, ra: &str, rb: &str) -> ParseResult {
+    fn assemble_alu(&mut self, cmd: &str, rd: &str, ra: &str, rb: &str) -> ParseResult {
         let rd = self.reg(rd)?;
         let ra = self.reg(ra)?;
         let rb = self.reg(rb)?;
-        self.append_instruction(Instruction::Add { rd, ra, rb })?;
+        let instruction = match cmd {
+            "add" => Instruction::Add { rd, ra, rb },
+            "sub" => Instruction::Sub { rd, ra, rb },
+            "and" => Instruction::And { rd, ra, rb },
+            "or" => Instruction::Or { rd, ra, rb },
+            "xor" => Instruction::Xor { rd, ra, rb },
+            "shl" => Instruction::Shl { rd, ra, rb },
+            "shr" => Instruction::Shr { rd, ra, rb },
+            "sar" => Instruction::Sar { rd, ra, rb },
+            "neg" => Instruction::Neg { rd, ra },
+            "not" => Instruction::Not { rd, ra },
+            "cmp" => Instruction::Cmp { ra, rb },
+            _ => unreachable!(),
+        };
+        self.append_instruction(instruction)?;
         Ok(())
     }
 
-    fn assemble_addi(&mut self, rd: &str, ra: &str, imm: &str) -> ParseResult {
+    fn assemble_alui(&mut self, cmd: &str, rd: &str, ra: &str, imm: &str) -> ParseResult {
         let rd = self.reg(rd)?;
         let ra = self.reg(ra)?;
         let imm = parse_signed_number(imm)?;
         self.assert_range(imm as i64, i16::MIN as i64, i16::MAX as i64)?;
-        self.append_instruction(Instruction::Addi {
-            rd,
-            ra,
-            imm: imm as u16 as u32,
-        })?;
+        let imm = imm as u32;
+        pls! {
+            let instruction = match cmd {
+                "addi" => Instruction::Addi { rd, ra, imm },
+                "subi" => Instruction::Subi { rd, ra, imm },
+                "andi" => Instruction::Andi { rd, ra, imm },
+                "ori" => Instruction::Ori { rd, ra, imm },
+                "xori" => Instruction::Xori { rd, ra, imm },
+                "shli" => Instruction::Shli { rd, ra, imm: imm as u8 },
+                "shri" => Instruction::Shri { rd, ra, imm: imm as u8 },
+                "sari" => Instruction::Sari { rd, ra, imm: imm as u8 },
+                "cmpi" => Instruction::Cmpi { ra, imm },
+                _ => unreachable!(),
+            };
+        }
+        self.append_instruction(instruction)?;
         Ok(())
     }
 
@@ -688,6 +809,7 @@ impl State {
         data: &str,
         zero_term: bool,
     ) -> ParseResult {
+        let data = parse_string_literal(data)?;
         let mut target = self.bytes.len() + data.len();
         if zero_term {
             target += 1;
@@ -699,7 +821,7 @@ impl State {
             )));
         }
         let address = self.bytes.len() as u32;
-        self.bytes.extend_from_slice(data.as_bytes());
+        self.bytes.extend_from_slice(&data);
         if zero_term {
             self.bytes.push(0);
         }
@@ -845,13 +967,10 @@ impl State {
         }
         Ok(())
     }
-    fn tokenize(&mut self, line: &str) -> Vec<String> {
+    fn tokenize(&mut self, line: &str) -> Result<Vec<String>, ParseError> {
         let line_len = line.len();
         let (prefix, string_token) = match line.find('"') {
-            Some(index) => (
-                &line[..index],
-                Some(line[(index + 1)..(line_len - 1)].trim()), // TODO: use a validator instead..
-            ),
+            Some(index) => (&line[..index], Some(line[index..line_len].trim())),
             None => (line, None),
         };
 
@@ -885,8 +1004,63 @@ impl State {
             parts.push(string_token.to_owned());
         }
 
-        parts
+        Ok(parts)
     }
+}
+
+fn parse_string_literal(value: &str) -> Result<Vec<u8>, ParseError> {
+    if !value.starts_with('"') || !value.ends_with('"') || value.len() < 2 {
+        return Err(ParseError::InvalidStringLiteral(value.to_owned()));
+    }
+
+    let inner = &value[1..value.len() - 1];
+
+    let mut output = Vec::new();
+    let mut chars = inner.chars();
+
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            let mut buffer = [0; 4];
+            output.extend_from_slice(ch.encode_utf8(&mut buffer).as_bytes());
+            continue;
+        }
+
+        let escaped = chars
+            .next()
+            .ok_or_else(|| ParseError::InvalidStringLiteral("\\".to_owned()))?;
+
+        match escaped {
+            'n' => output.push(b'\n'),
+            'r' => output.push(b'\r'),
+            't' => output.push(b'\t'),
+            '0' => output.push(0),
+            '"' => output.push(b'"'),
+            '\\' => output.push(b'\\'),
+
+            'x' => {
+                let hi = chars
+                    .next()
+                    .ok_or_else(|| ParseError::InvalidStringLiteral("\\x".to_owned()))?;
+
+                let lo = chars
+                    .next()
+                    .ok_or_else(|| ParseError::InvalidStringLiteral(format!("\\x{hi}")))?;
+
+                let hex = format!("{hi}{lo}");
+
+                let byte = u8::from_str_radix(&hex, 16)
+                    .map_err(|_| ParseError::InvalidStringLiteral(format!("\\x{hex}")))?;
+
+                output.push(byte);
+            }
+
+            other => {
+                return Err(ParseError::InvalidStringLiteral(format!("\\{other}")));
+            }
+        }
+    }
+
+    Ok(output)
 }
 
 fn parse_signed_number(text: &str) -> Result<i32, ParseError> {

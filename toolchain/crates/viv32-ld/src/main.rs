@@ -154,10 +154,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
             let field_mask = (mask as u32) << relocation.field_shift;
             let replaced = (replacing & !field_mask) | relocated;
-            println!(
-                "Replacing {:08X} with {:08X} at {:08X}",
-                replacing, replaced, client
-            );
+            // println!(
+            //     "Replacing {:08X} with {:08X} at {:08X}",
+            //     replacing, replaced, client
+            // );
             object_file.bytes[client as usize..(client as usize) + 4]
                 .copy_from_slice(&replaced.to_be_bytes());
         } else {
