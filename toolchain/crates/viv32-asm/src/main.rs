@@ -185,6 +185,18 @@ impl State {
                     (Modes::Bss, [label, ":", ".space", alignment, size]) => self.assemble_bss(label, alignment, size)?,
                     (Modes::Data, [label, ":", format, data, data2]) => self.assemble_data(label, format, data, data2)?,
                     (Modes::RoData, [label, ":", format, data, data2]) => self.assemble_data(label, format, data, data2)?,
+                    (Modes::Data, [label, ":", ".bin", bin_name]) => {
+                        println!("{}", bin_name);
+                        self.ensure_alignment(4)?;
+                        self.assemble_label(label)?;
+                        self.insert_data(bin_name)?;
+                    }
+                    (Modes::RoData, [label, ":", ".bin", bin_name]) => {
+                        println!("{}", bin_name);
+                        self.ensure_alignment(4)?;
+                        self.assemble_label(label)?;
+                        self.insert_data(bin_name)?;
+                    }
                     (Modes::Data, [label, ":", format, data]) => self.assemble_data(label, format, data, "0")?,
                     (Modes::RoData, [label, ":", format, data]) => self.assemble_data(label, format, data, "0")?,
                     (Modes::Text, [label, ":"]) => self.assemble_label(label)?,
@@ -279,6 +291,12 @@ impl State {
             }
         }
 
+        Ok(())
+    }
+
+    fn insert_data(&mut self, filename: &str) -> ParseResult {
+        let bytes: Vec<u8> = std::fs::read(filename)?;
+        self.bytes.extend_from_slice(&bytes);
         Ok(())
     }
 

@@ -44,6 +44,7 @@ serial_tx:
     push    $1, $2, $3, $4
     la      $2, serial_data             ; Load address of the bss serial buffer
     lb      $3, [$2, 0]                 ; Read the count out of the buffer
+    b.eq    $3, $0, serial_tx_skip      ; Early exit if zero length
     add     $3, $3, $2                  ; Calculate the last storage location
     li      $4, SERIAL_ADDRESS          ; Load serial transmit buffer address
 serial_tx_loop:
@@ -53,6 +54,7 @@ serial_tx_loop:
     b.ne    $2, $3, serial_tx_loop      ; Check if last byte, loop if not
     la      $2, serial_data
     sb      $0, [$2, 0]                 ; Clear buffer count
+serial_tx_skip:
     pop     $4, $3, $2, $1
     ret
     
