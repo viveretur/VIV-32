@@ -26,9 +26,11 @@ isa: check-isa gen-isa-rust check-emulator
 test-all:
 	cd {{ROOT}} && ./scripts/test-all.sh
 
-# Format emulator
-emulator-fmt-clippy:
-	cd {{ROOT}}/emulator && cargo fmt --check && cargo clippy --all-targets
+demo name="hello_world" args="":
+	make -C demos/{{name}} run EMU_ARGS="{{args}}"
+
+demo-disasm name="hello_world":
+	make -C demos/{{name}} disasm
 
 # Remove generated files
 clean:

@@ -1,0 +1,55 @@
+# This file is included in the individual project Makefiles,
+# so the directories are deeper.
+DEMO_DIR := $(abspath .)
+DEMOS_DIR := $(abspath ..)
+ROOT_DIR := $(abspath ../..)
+
+TOOLCHAIN_MANIFEST := $(ROOT_DIR)/toolchain/Cargo.toml
+EMULATOR_MANIFEST  := $(ROOT_DIR)/emulator/Cargo.toml
+
+DEMO_NAME := $(notdir $(DEMO_DIR))
+BUILD_DIR := $(DEMOS_DIR)/build/$(DEMO_NAME)
+BIN := $(BUILD_DIR)/$(DEMO_NAME).bin
+
+ASM := cargo run -q --manifest-path $(TOOLCHAIN_MANIFEST) -p viv32-asm --
+LD  := cargo run -q --manifest-path $(TOOLCHAIN_MANIFEST) -p viv32-ld --
+DIS := cargo run -q --manifest-path $(TOOLCHAIN_MANIFEST) -p viv32-dis --
+EMU := cargo run -q --manifest-path $(EMULATOR_MANIFEST) --
+
+ASM_NAMES := $(notdir $(ASM_SRCS))
+OBJS := $(patsubst %.asm,$(BUILD_DIR)/%.vo,$(ASM_NAMES))
+
+EMU_ARGS ?=
+DIS_ARGS ?=
+
+.PHONY: all run disasm clean print-vars
+
+all: $(BIN)
+
+$(BIN): $(OBJS)
+	$(LD) $(OBJS) -o $@
+
+$(BUILD_DIR)/%.vo: %.asm
+	@mkdir -p $(dir $@)
+	$(ASM) $< -o $@
+
+$(BUILD_DIR)/%.vo: ../lib/%.asm
+	@mkdir -p $(dir $@)
+	$(ASM) $< -o $@
+
+run: $(BIN)
+	$(EMU) $(BIN) $(EMU_ARGS)
+
+disasm: $(BIN)
+	$(DIS) $(BIN) $(DIS_ARGS)
+
+clean:
+	rm -rf $(BUILD_DIR)
+
+print-vars:
+	@echo DEMO_NAME=$(DEMO_NAME)
+	@echo BUILD_DIR=$(BUILD_DIR)
+	@echo ASM_SRCS=$(ASM_SRCS)
+	@echo ASM_NAMES=$(ASM_NAMES)
+	@echo OBJS=$(OBJS)
+	@echo BIN=$(BIN)

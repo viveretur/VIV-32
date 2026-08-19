@@ -34,4 +34,3 @@ exit_loop:
 .rodata:
 message_ptr:  .uword message
 message:      .asciz "Hello World!\n"
-data:         .bin   data.bin
