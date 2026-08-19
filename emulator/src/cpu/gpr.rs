@@ -33,10 +33,6 @@ impl GprFile {
             self.registers[index] = value;
         }
     }
-
-    pub fn as_raw_slice(&self) -> &[u32; Self::COUNT] {
-        &self.registers
-    }
 }
 
 impl Lifecycle for GprFile {

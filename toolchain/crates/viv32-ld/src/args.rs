@@ -1,8 +1,4 @@
-use anyhow::Result;
 use clap::Parser;
-use std::{fs::File, path::PathBuf};
-
-use viv32_ld::Linker;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -24,17 +20,4 @@ struct Args {
     pub map: Option<PathBuf>,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-    let mut linker = Linker::new();
 
-    for input in &args.inputs {
-        let file = File::open(input)?;
-        linker.add(file)?;
-    }
-
-    let output_file = File::create(&args.output)?;
-    linker.link(output_file)?;
-
-    Ok(())
-}

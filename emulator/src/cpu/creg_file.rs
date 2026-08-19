@@ -32,10 +32,6 @@ impl CregFile {
         &self.sr
     }
 
-    pub(crate) fn sr_mut(&mut self) -> &mut StatusRegister {
-        &mut self.sr
-    }
-
     pub(crate) fn update_sr_flags(
         &mut self,
         arithmetic_error: bool,

@@ -6,8 +6,8 @@
 use crate::{
     Cpu, Lifecycle, SystemBus,
     platform::{
-        Clock, Ram, Serial, SerialSink, SerialSource, StdoutSerialSink, Timer, VecSerialSink,
-        VecSerialSource,
+        Clock, Ram, Serial, SerialSink, SerialSource, StdoutSerialSink, SystemBusError, Timer,
+        VecSerialSink, VecSerialSource,
     },
 };
 
@@ -67,7 +67,7 @@ impl Machine {
         }
     }
 
-    pub fn from_toml_config(config: MachineTomlConfig) -> Self {
+    pub fn from_toml_config(config: MachineTomlConfig) -> Result<Self, SystemBusError> {
         let mut bus = SystemBus::new();
 
         for device_config in config.devices {
@@ -79,7 +79,7 @@ impl Machine {
 
                     if let Some(path) = device_config.image.as_ref() {
                         let image = std::fs::read(path).expect("Error reading file");
-                        ram.write_slice(device_config.image_base.unwrap_or(0), &image);
+                        ram.write_slice(device_config.image_base.unwrap_or(0), &image)?;
                     }
 
                     bus.map_device(device_config.base, Box::new(ram))
@@ -117,10 +117,10 @@ impl Machine {
             }
         }
 
-        Self::new(bus)
+        Ok(Self::new(bus))
     }
 
-    pub fn from_toml_file(path: impl AsRef<std::path::Path>) -> Self {
+    pub fn from_toml_file(path: impl AsRef<std::path::Path>) -> Result<Self, SystemBusError> {
         let text = std::fs::read_to_string(path).expect("failed to read machine TOML config");
 
         let config: MachineTomlConfig =

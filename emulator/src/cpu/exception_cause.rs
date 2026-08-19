@@ -12,7 +12,6 @@ pub enum ExceptionCause {
 
 impl ExceptionCause {
     pub const SLOT_SIZE: u32 = 16;
-    pub const TABLE_SIZE: u32 = 8 * Self::SLOT_SIZE;
 
     pub fn code(self) -> u32 {
         self as u32

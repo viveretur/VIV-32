@@ -748,7 +748,7 @@ mod tests {
         
         cpu.reset();
         bus.reset();
-        cpu.creg.sr_mut().set_interrupt_enable(true);
+        cpu.creg.ei();
         bus.write32(TIMER_COUNTER, 246).unwrap();
         bus.write32(TIMER_CONTROL, 0x0000_0003).unwrap(); // enable | irq_enable
         bus.write32(TIMER_COMPARE, 0x0000_0100).unwrap(); // 256

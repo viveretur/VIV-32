@@ -80,10 +80,6 @@ impl StatusRegister {
         self.set_flag(Self::FLAG_IE, value);
     }
 
-    pub fn clear_condition_flags(&mut self) {
-        self.value &= Self::FLAG_IE;
-    }
-
     fn has(&self, flag: u32) -> bool {
         self.value & flag != 0
     }
@@ -167,16 +163,6 @@ mod tests {
         sr.set_interrupt_enable(false);
 
         assert_eq!(sr.get(), 0);
-    }
-
-    #[test]
-    fn clear_condition_flags_preserves_interrupt_enable() {
-        let mut sr = StatusRegister::new();
-
-        sr.set(StatusRegister::VALID_MASK);
-        sr.clear_condition_flags();
-
-        assert_eq!(sr.get(), StatusRegister::FLAG_IE);
     }
 
     #[test]

@@ -25,10 +25,6 @@ impl ProgramCounter {
     pub fn advance_word(&mut self) {
         self.value = self.value.wrapping_add(4);
     }
-
-    pub fn advance_by(&mut self, bytes: u32) {
-        self.value = self.value.wrapping_add(bytes);
-    }
 }
 
 impl Lifecycle for ProgramCounter {
@@ -95,16 +91,6 @@ mod tests {
         pc.advance_word();
 
         assert_eq!(pc.get(), 0x1004);
-    }
-
-    #[test]
-    fn advance_by_adds_byte_count() {
-        let mut pc = ProgramCounter::new();
-
-        pc.set(0x1000);
-        pc.advance_by(12);
-
-        assert_eq!(pc.get(), 0x100C);
     }
 
     #[test]
