@@ -6,8 +6,8 @@ A custom computer architecture project implementing:
 
 - an ISA specification;
 - a reference emulator;
-- a QEMU target;
-- a Verilog/SystemVerilog implementation;
+- a QEMU target (TODO);
+- a Verilog/SystemVerilog implementation (TODO);
 - an assembler/linker toolchain;
 - firmware and diagnostics;
 - historical programming language experiments.
@@ -15,6 +15,16 @@ A custom computer architecture project implementing:
 ## Current Status
 
 For the current development plan, see [TODO.md](TODO.md).
+
+## Quick start
+
+Common commands are defined in `justfile`. To build and run the default VIV-32 demo:
+
+```bash
+just --list
+
+just demo
+```
 
 ## Documentation
 
@@ -25,6 +35,7 @@ For the current development plan, see [TODO.md](TODO.md).
 
 ## Major Components
 
+- `demos/` — capability demonstration programs
 - `spec/` — machine-readable architecture definitions
 - `emulator/` — reference emulator
 - `hdl/` — hardware implementation
@@ -32,14 +43,10 @@ For the current development plan, see [TODO.md](TODO.md).
 - `firmware/` — boot code, monitor, diagnostics
 - `tests/` — conformance tests
 
-## Development
+## Screenshot
 
-Common commands are defined in `justfile`.
+![VIV-32 assembling, linking, and executing a bare-metal “Hello World” program through its emulated serial device.](docs/screenshot.png)
 
-```bash
-just --list
-```
-  
 ## Licence
 
 This project is experimental and provided as-is. It is not production hardware, security, safety, or compliance tooling.

@@ -27,7 +27,7 @@ test-all:
 	cd {{ROOT}} && ./scripts/test-all.sh
 
 demo name="hello_world" args="":
-	cd {{ROOT}} && make --no-print-directory -C demos/{{name}} run EMU_ARGS="{{args}}"
+	@cd {{ROOT}} && make --no-print-directory -C demos/{{name}} run EMU_ARGS="{{args}}"
 
 demo-disasm name="hello_world":
 	cd {{ROOT}} && make -C demos/{{name}} disasm

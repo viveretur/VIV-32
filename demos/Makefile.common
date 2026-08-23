@@ -27,21 +27,21 @@ DIS_ARGS ?=
 all: $(BIN)
 
 $(BIN): $(OBJS)
-	$(LD) $(OBJS) -o $@
+	@$(LD) $(OBJS) -o $@
 
 $(BUILD_DIR)/%.vo: %.asm
 	@mkdir -p $(dir $@)
-	$(ASM) $< -o $@
+	@$(ASM) $< -o $@
 
 $(BUILD_DIR)/%.vo: ../lib/%.asm
 	@mkdir -p $(dir $@)
-	$(ASM) $< -o $@
+	@$(ASM) $< -o $@
 
 $(BUILD_DIR)/device_config.toml: device_config.toml
-	cp $< $@
+	@cp $< $@
 
 run: $(BIN) $(BUILD_DIR)/device_config.toml
-	cd $(BUILD_DIR) && $(EMU) device_config.toml $(EMU_ARGS)
+	@cd $(BUILD_DIR) && $(EMU) device_config.toml $(EMU_ARGS)
 
 disasm: $(BIN)
 	$(DIS) $(BIN) $(DIS_ARGS)
