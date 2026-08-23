@@ -27,15 +27,16 @@ test-all:
 	cd {{ROOT}} && ./scripts/test-all.sh
 
 demo name="hello_world" args="":
-	make -C demos/{{name}} run EMU_ARGS="{{args}}"
+	cd {{ROOT}} && make --no-print-directory -C demos/{{name}} run EMU_ARGS="{{args}}"
 
 demo-disasm name="hello_world":
-	make -C demos/{{name}} disasm
+	cd {{ROOT}} && make -C demos/{{name}} disasm
 
 # Remove generated files
 clean:
-	rm -rf build dist target obj_dir
-	find docs -type f \( \
+	cd {{ROOT}} && rm -rf build dist target obj_dir
+	cd {{ROOT}} && rm -rf demos/build
+	cd {{ROOT}} && find docs -type f \( \
 		-name "*.aux" -o \
 		-name "*.log" -o \
 		-name "*.toc" -o \

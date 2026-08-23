@@ -3,7 +3,7 @@ name = "ram"
 kind = "ram"
 base = 0
 size = 8192
-image = "examples/hello.bin"
+image = "hello_world.bin"
 image_base = 0
 
 [[devices]]

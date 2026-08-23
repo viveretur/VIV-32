@@ -31,7 +31,7 @@ pub struct DeviceTomlConfig {
     pub source: Option<SerialSourceKind>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum DeviceKind {
     Ram,
