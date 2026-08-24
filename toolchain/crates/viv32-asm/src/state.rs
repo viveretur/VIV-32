@@ -111,13 +111,11 @@ impl State {
                 (Modes::Data, [label, ":", format, data, data2]) => self.assemble_data(label, format, data, data2)?,
                 (Modes::RoData, [label, ":", format, data, data2]) => self.assemble_data(label, format, data, data2)?,
                 (Modes::Data, [label, ":", ".bin", bin_name]) => {
-                    println!("{}", bin_name);
                     self.ensure_alignment(4)?;
                     self.assemble_label(label)?;
                     self.insert_data(bin_name)?;
                 }
                 (Modes::RoData, [label, ":", ".bin", bin_name]) => {
-                    println!("{}", bin_name);
                     self.ensure_alignment(4)?;
                     self.assemble_label(label)?;
                     self.insert_data(bin_name)?;
@@ -224,8 +222,8 @@ impl State {
     }
 
     fn assemble_bits(&mut self, cmd: &str, rd: &str, ra: &str, imm: &str) -> ParseResult {
-        let rd = self.reg(rd)?;
-        let ra = self.reg(ra)?;
+        let rd = reg(rd)?;
+        let ra = reg(ra)?;
         let imm = parse_unsigned_number(imm)?;
         self.assert_range(imm as i64, 0, 31)?;
         let imm = imm as u8;
@@ -241,10 +239,10 @@ impl State {
     }
 
     fn assemble_mul(&mut self, cmd: &str, rd0: &str, rd1: &str, ra: &str, rb: &str) -> ParseResult {
-        let rd0 = self.reg(rd0)?;
-        let rd1 = self.reg(rd1)?;
-        let ra = self.reg(ra)?;
-        let rb = self.reg(rb)?;
+        let rd0 = reg(rd0)?;
+        let rd1 = reg(rd1)?;
+        let ra = reg(ra)?;
+        let rb = reg(rb)?;
         let instruction = match cmd {
             "mul" => Instruction::Mul { rd0, rd1, ra, rb },
             "mulu" => Instruction::Mulu { rd0, rd1, ra, rb },
@@ -257,8 +255,8 @@ impl State {
     }
 
     fn assemble_push(&mut self, regs: &[&str]) -> ParseResult {
-        for reg in regs {
-            let rs = self.reg(reg)?;
+        for r in regs {
+            let rs = reg(r)?;
             // %sp == r14
             // subi %sp, %sp, 4
             // sw $rs, [%sp, 0]
@@ -271,8 +269,8 @@ impl State {
     }
 
     fn assemble_pop(&mut self, regs: &[&str]) -> ParseResult {
-        for reg in regs {
-            let rd = self.reg(reg)?;
+        for r in regs {
+            let rd = reg(r)?;
             // %sp == r14
             // lw $rs, [%sp, 0]
             // addi %sp, %sp 4
@@ -285,8 +283,8 @@ impl State {
     }
 
     fn assemble_m(&mut self, m: &str, rds: &str, base: &str, offset: &str) -> ParseResult {
-        let rds = self.reg(rds)?;
-        let base = self.reg(base)?;
+        let rds = reg(rds)?;
+        let base = reg(base)?;
         let offset = parse_signed_number(offset)?;
         self.assert_range(offset as i64, -(1i64 << 14), (1i64 << 14) - 1)?;
         pls! {
@@ -307,7 +305,7 @@ impl State {
     }
 
     fn assemble_constant(&mut self, ld: &str, rd: &str, imm: &str) -> ParseResult {
-        let rd = self.reg(rd)?;
+        let rd = reg(rd)?;
         let imm = parse_unsigned_number(imm)?;
         if imm > u16::MAX as u32 {
             return Err(ParseError::InvalidNumber(format!(
@@ -328,7 +326,7 @@ impl State {
     }
 
     fn assemble_li(&mut self, rd: &str, imm: &str) -> ParseResult {
-        let rd = self.reg(rd)?;
+        let rd = reg(rd)?;
         let imm = parse_unsigned_number(imm)?;
         pls! {
             self.append_instruction(Instruction::Lli { rd, imm16: (imm & 0xFFFF) as u16 })?;
@@ -338,7 +336,7 @@ impl State {
     }
 
     fn assemble_la(&mut self, rd: &str, label: &str) -> ParseResult {
-        let rd = self.reg(rd)?;
+        let rd = reg(rd)?;
         self.mangle_name(label)?;
         let mangled = self.mangles.get(label).cloned().unwrap();
         self.relocations.push(Relocation {
@@ -369,8 +367,8 @@ impl State {
     }
 
     fn assemble_b(&mut self, b: &str, ra: &str, rb: &str, label: &str) -> ParseResult {
-        let ra = self.reg(ra)?;
-        let rb = self.reg(rb)?;
+        let ra = reg(ra)?;
+        let rb = reg(rb)?;
         self.mangle_name(label)?;
         let mangled = self.mangles.get(label).cloned().unwrap();
         let instruction = match b {
@@ -485,14 +483,14 @@ impl State {
     }
 
     fn assemble_jr(&mut self, rd: &str) -> ParseResult {
-        let target = self.reg(rd)?;
+        let target = reg(rd)?;
         self.append_instruction(Instruction::Jr { target })?;
         Ok(())
     }
 
     fn assemble_jalr(&mut self, rd: &str, target: &str) -> ParseResult {
-        let rd = self.reg(rd)?;
-        let target = self.reg(target)?;
+        let rd = reg(rd)?;
+        let target = reg(target)?;
         self.append_instruction(Instruction::Jalr { rd, target })?;
         Ok(())
     }
@@ -505,7 +503,7 @@ impl State {
     }
 
     fn assemble_rdpc(&mut self, rd: &str) -> ParseResult {
-        let rd = self.reg(rd)?;
+        let rd = reg(rd)?;
         self.append_instruction(Instruction::RdPc { rd })?;
         Ok(())
     }
@@ -523,7 +521,7 @@ impl State {
                 return Err(ParseError::InvalidName(format!("Invalid creg: {}", cr)));
             }
         };
-        let rd = self.reg(rd)?;
+        let rd = reg(rd)?;
         self.append_instruction(Instruction::Mrs { rd: rd, creg4: cr })?;
         Ok(())
     }
@@ -541,15 +539,15 @@ impl State {
                 return Err(ParseError::InvalidName(format!("Invalid creg: {}", cr)));
             }
         };
-        let rs = self.reg(rs)?;
+        let rs = reg(rs)?;
         self.append_instruction(Instruction::Msr { creg4: cr, rs: rs })?;
         Ok(())
     }
 
     fn assemble_alu(&mut self, cmd: &str, rd: &str, ra: &str, rb: &str) -> ParseResult {
-        let rd = self.reg(rd)?;
-        let ra = self.reg(ra)?;
-        let rb = self.reg(rb)?;
+        let rd = reg(rd)?;
+        let ra = reg(ra)?;
+        let rb = reg(rb)?;
         let instruction = match cmd {
             "add" => Instruction::Add { rd, ra, rb },
             "sub" => Instruction::Sub { rd, ra, rb },
@@ -569,8 +567,8 @@ impl State {
     }
 
     fn assemble_alui(&mut self, cmd: &str, rd: &str, ra: &str, imm: &str) -> ParseResult {
-        let rd = self.reg(rd)?;
-        let ra = self.reg(ra)?;
+        let rd = reg(rd)?;
+        let ra = reg(ra)?;
         let imm = parse_signed_number(imm)?;
         self.assert_range(imm as i64, i16::MIN as i64, i16::MAX as i64)?;
         let imm = imm as u32;
@@ -597,18 +595,6 @@ impl State {
         self.bytes
             .extend_from_slice(&encode(instruction)?.to_be_bytes());
         Ok(())
-    }
-
-    fn reg(&mut self, value: &str) -> Result<u8, ParseError> {
-        let reg = parse_unsigned_number(value)?;
-        if reg > 0xF {
-            Err(ParseError::InvalidNumber(format!(
-                "Invalid register: {}",
-                value
-            )))
-        } else {
-            Ok(reg as u8)
-        }
     }
 
     fn add_constant(&mut self, name: &str, value: &str) -> ParseResult {
@@ -936,6 +922,18 @@ impl State {
         }
 
         Ok(parts)
+    }
+}
+
+fn reg(value: &str) -> Result<u8, ParseError> {
+    let reg = parse_unsigned_number(value)?;
+    if reg > 0xF {
+        Err(ParseError::InvalidNumber(format!(
+            "Invalid register: {}",
+            value
+        )))
+    } else {
+        Ok(reg as u8)
     }
 }
 
