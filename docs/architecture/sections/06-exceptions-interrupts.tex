@@ -28,8 +28,8 @@ The \code{ecause} control register records the cause of the most recent exceptio
 \code{0x03} & Misaligned data access & Misaligned halfword or word load/store \\
 \code{0x04} & Software trap & \code{trap} instruction \\
 \code{0x05} & System call & \code{syscall} instruction \\
-\code{0x06} & Timer interrupt & Platform timer interrupt \\
-\code{0x07} & External interrupt & Platform external interrupt \\
+\code{0x06} & Device interrupt & Bus-attached device interrupt \\
+\code{0x07} & Bus error &  \\
 \code{0x08--0xFF} & Reserved & Reserved for future architectural or platform causes \\
 \hline
 \end{tabular}

@@ -173,9 +173,9 @@ impl SystemBus {
         Ok(())
     }
 
-    pub fn pending_interrupt(&self) -> Option<u32> {
+    pub fn pending_interrupt(&mut self) -> Option<u32> {
         self.irq_table.iter().flatten().find_map(|device_id| {
-            let device = &self.devices[device_id.0];
+            let device = &mut self.devices[device_id.0];
 
             if device.interrupt_asserted() {
                 Some(device.base())

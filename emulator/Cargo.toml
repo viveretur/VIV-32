@@ -5,5 +5,6 @@ edition = "2024"
 
 [dependencies]
 viv32-isa = { path = "../toolchain/crates/viv32-isa" }
+libc = "0.2"
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"

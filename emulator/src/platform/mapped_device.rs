@@ -62,7 +62,7 @@ impl BusDevice for MappedDevice {
         self.device.write8(self.offset(address), value)
     }
 
-    fn interrupt_asserted(&self) -> bool {
+    fn interrupt_asserted(&mut self) -> bool {
         self.device.interrupt_asserted()
     }
 }

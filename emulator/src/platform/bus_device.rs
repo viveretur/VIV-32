@@ -14,7 +14,7 @@ pub trait BusDevice: Lifecycle {
     fn write8(&mut self, offset: u32, value: u8) -> Option<()>;
 
     /// Signals that the device has something requiring attention.
-    fn interrupt_asserted(&self) -> bool {
+    fn interrupt_asserted(&mut self) -> bool {
         false
     }
 }

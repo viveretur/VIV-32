@@ -208,7 +208,6 @@ impl State {
 
             // Jump/Call
             (Modes::Text, ["jmp", target]) => {
-                // TODO: range checks are wrong!
                 let offset = self.rimmi(target, MIN_I28, MAX_I28, Relocation::new(self.bytes.len() as u32, String::new(), -4, Relative, Signed, 2, 26, 0, 1))?;
                 self.append(I::Jmp { offset })?;
             }

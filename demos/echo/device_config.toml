@@ -1,0 +1,26 @@
+[[devices]]
+name = "ram"
+kind = "ram"
+base = 0
+size = 8192
+image = "echo.bin"
+image_base = 0
+
+[[devices]]
+name = "timer"
+kind = "timer"
+base = 0xFFFF_0100
+irq = 0
+
+[[devices]]
+name = "serial"
+kind = "serial"
+base = 0xFFFF_0200
+irq = 1
+sink = "stdout"
+source = "stdin"
+
+[[devices]]
+name = "clock"
+kind = "clock"
+base = 0xFFFF_0000

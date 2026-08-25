@@ -4,7 +4,7 @@
 //! instance. Construction loads the host-side machine image; `reset` starts the
 //! architectural machine; `tick` advances execution by one CPU tick.
 use crate::{
-    Cpu, Lifecycle, SystemBus,
+    Cpu, Lifecycle, StdinSerialSource, SystemBus,
     platform::{
         Clock, Ram, Serial, SerialSink, SerialSource, StdoutSerialSink, SystemBusError, Timer,
         VecSerialSink, VecSerialSource,
@@ -87,7 +87,9 @@ impl Machine {
 
                 DeviceKind::Serial => {
                     let sink: Box<dyn SerialSink> = match device_config.sink {
-                        Some(SerialSinkKind::Stdout) | None => Box::new(StdoutSerialSink),
+                        Some(SerialSinkKind::Stdout) | None => {
+                            Box::new(StdoutSerialSink::default())
+                        }
                         Some(SerialSinkKind::Vec) => Box::new(VecSerialSink::new()),
                     };
 
@@ -95,12 +97,7 @@ impl Machine {
                         Some(SerialSourceKind::Empty) | None => {
                             Box::new(VecSerialSource::default())
                         }
-                        Some(SerialSourceKind::Stdin) => {
-                            let mut bytes = Vec::new();
-                            std::io::Read::read_to_end(&mut std::io::stdin(), &mut bytes)
-                                .expect("Failed to load file.");
-                            Box::new(VecSerialSource::new(bytes))
-                        }
+                        Some(SerialSourceKind::Stdin) => Box::new(StdinSerialSource::default()),
                     };
 
                     let serial = Serial::new(sink, source);

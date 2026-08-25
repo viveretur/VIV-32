@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::io::{self, Read};
 
 use super::BusDevice;
 
@@ -6,16 +7,21 @@ use crate::Lifecycle;
 
 pub trait SerialSink {
     fn write_byte(&mut self, byte: u8);
+    fn ready(&mut self) -> bool;
 }
 
 pub trait SerialSource {
     fn read_byte(&mut self) -> Option<u8>;
-    fn has_byte(&self) -> bool;
+    fn has_byte(&mut self) -> bool;
 }
 
 impl<T: SerialSink + ?Sized> SerialSink for Box<T> {
     fn write_byte(&mut self, byte: u8) {
         (**self).write_byte(byte);
+    }
+
+    fn ready(&mut self) -> bool {
+        (**self).ready()
     }
 }
 
@@ -24,7 +30,7 @@ impl<T: SerialSource + ?Sized> SerialSource for Box<T> {
         (**self).read_byte()
     }
 
-    fn has_byte(&self) -> bool {
+    fn has_byte(&mut self) -> bool {
         (**self).has_byte()
     }
 }
@@ -49,6 +55,10 @@ impl SerialSink for VecSerialSink {
     fn write_byte(&mut self, byte: u8) {
         self.bytes.push(byte);
     }
+
+    fn ready(&mut self) -> bool {
+        true
+    }
 }
 
 impl VecSerialSource {
@@ -72,15 +82,20 @@ impl SerialSource for VecSerialSource {
         self.bytes.pop_front()
     }
 
-    fn has_byte(&self) -> bool {
+    fn has_byte(&mut self) -> bool {
         !self.bytes.is_empty()
     }
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct StdoutSerialSink;
+pub struct StdoutSerialSink {
+    ready: u8,
+}
 
-pub struct StdinSerialSource;
+#[derive(Debug)]
+pub struct StdinSerialSource {
+    data: Option<u8>,
+}
 
 impl SerialSink for StdoutSerialSink {
     fn write_byte(&mut self, byte: u8) {
@@ -88,6 +103,61 @@ impl SerialSink for StdoutSerialSink {
 
         let _ = io::stdout().write_all(&[byte]);
         let _ = io::stdout().flush();
+
+        self.ready = 0xFF;
+    }
+
+    fn ready(&mut self) -> bool {
+        self.ready = self.ready.saturating_sub(1);
+        self.ready == 0
+    }
+}
+
+fn set_stdin_nonblocking() -> io::Result<()> {
+    unsafe {
+        let flags = libc::fcntl(libc::STDIN_FILENO, libc::F_GETFL);
+        if flags == -1 {
+            return Err(io::Error::last_os_error());
+        }
+
+        if libc::fcntl(libc::STDIN_FILENO, libc::F_SETFL, flags | libc::O_NONBLOCK) == -1 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+
+    Ok(())
+}
+
+fn try_read_stdin() -> io::Result<Option<u8>> {
+    let mut byte = [0u8; 1];
+
+    match io::stdin().read(&mut byte) {
+        Ok(0) => Ok(None),
+        Ok(_) => Ok(Some(byte[0])),
+        Err(err) if err.kind() == io::ErrorKind::WouldBlock => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+impl Default for StdinSerialSource {
+    fn default() -> Self {
+        set_stdin_nonblocking().expect("Unable to set stdin correctly, aborting.");
+        Self { data: None }
+    }
+}
+
+impl SerialSource for StdinSerialSource {
+    fn has_byte(&mut self) -> bool {
+        self.data.is_some() || {
+            self.data = try_read_stdin().expect("Something went wrong reading data");
+            self.data.is_some()
+        }
+    }
+
+    fn read_byte(&mut self) -> Option<u8> {
+        let ret = self.data;
+        self.data = None;
+        ret
     }
 }
 
@@ -105,21 +175,13 @@ const CONTROL_END_OFFSET: u32 = 0x07;
 const CONTROL_ENABLE: u32 = 1 << 0;
 const CONTROL_TX_ENABLE: u32 = 1 << 1;
 const CONTROL_RX_ENABLE: u32 = 1 << 2;
-const CONTROL_BAUD_SHIFT: u32 = 4;
-const CONTROL_BAUD_MASK: u32 = 0xF << CONTROL_BAUD_SHIFT;
-const CONTROL_DATA_BITS_SHIFT: u32 = 8;
-const CONTROL_DATA_BITS_MASK: u32 = 0x3 << CONTROL_DATA_BITS_SHIFT;
-const CONTROL_PARITY_SHIFT: u32 = 10;
-const CONTROL_PARITY_MASK: u32 = 0x3 << CONTROL_PARITY_SHIFT;
-const CONTROL_STOP_BITS_SHIFT: u32 = 12;
-const CONTROL_STOP_BITS_MASK: u32 = 0x1 << CONTROL_STOP_BITS_SHIFT;
+const CONTROL_TX_INTERRUPTS: u32 = 1 << 3;
+const CONTROL_RX_INTERRUPTS: u32 = 1 << 4;
 const CONTROL_WRITABLE_MASK: u32 = CONTROL_ENABLE
     | CONTROL_TX_ENABLE
     | CONTROL_RX_ENABLE
-    | CONTROL_BAUD_MASK
-    | CONTROL_DATA_BITS_MASK
-    | CONTROL_PARITY_MASK
-    | CONTROL_STOP_BITS_MASK;
+    | CONTROL_TX_INTERRUPTS
+    | CONTROL_RX_INTERRUPTS;
 
 const STATUS_OFFSET: u32 = 0x08;
 const STATUS_RX_READY: u32 = 1 << 0;
@@ -155,24 +217,33 @@ where
     }
 
     fn read_data(&mut self) -> Option<u8> {
-        if self.enabled() && self.rx_enabled() {
+        let x = if self.enabled() && self.rx_enabled() {
             Some(self.source.read_byte().unwrap_or(0))
         } else {
             Some(0)
-        }
+        };
+        // println!("Attempted to read {:?}", x);
+        x
     }
 
     fn write_data(&mut self, byte: u8) {
+        // println!("attempted to write {}", byte);
         if self.enabled() && self.tx_enabled() {
             self.sink.write_byte(byte);
         }
     }
 
-    fn status(&self) -> u32 {
-        let mut status = STATUS_TX_READY;
+    fn status(&mut self) -> u32 {
+        let mut status = 0;
 
-        if self.enabled() && self.rx_enabled() && self.source.has_byte() {
-            status |= STATUS_RX_READY;
+        if self.enabled() {
+            if self.tx_enabled() && self.sink.ready() {
+                status |= STATUS_TX_READY;
+            }
+
+            if self.rx_enabled() && self.source.has_byte() {
+                status |= STATUS_RX_READY;
+            }
         }
 
         status
@@ -248,6 +319,14 @@ where
 
             _ => None,
         }
+    }
+
+    fn interrupt_asserted(&mut self) -> bool {
+        let control = self.control;
+        let status = self.status();
+
+        control & CONTROL_RX_INTERRUPTS != 0 && status & STATUS_RX_READY != 0
+            || control & CONTROL_TX_INTERRUPTS != 0 && status & STATUS_TX_READY != 0
     }
 }
 

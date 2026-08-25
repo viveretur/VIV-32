@@ -1,63 +1,106 @@
 ; File #2 for linker testing.
 
-.const SERIAL_TX_EN   0x0003
-.const SERIAL_ADDRESS 0xFFFF0200
+; These values must align with device_config and the serial specification.
+.const SERIAL_DATA      0xFFFF0200
+.const SERIAL_CONTROL   0xFFFF0204
+.const SERIAL_STATUS    0xFFFF0208
+.const STATUS_RX_READY  0x1
+.const STATUS_TX_READY  0x2
 
-.nomangle serial_enable_tx
-.nomangle serial_disable_tx
-.nomangle serial_buffer_tx_byte
-.nomangle serial_tx
+.nomangle serial_set_control
+.nomangle serial_status
+.nomangle serial_read
+.nomangle serial_send
+.nomangle serial_isr
+.nomangle serial_has_byte
 
-; Enable the serial output
-serial_enable_tx:
-    push    $1, $2
-    lli     $1, SERIAL_TX_EN            ; Serial control mask to enable TX
-    li      $2, SERIAL_ADDRESS          ; Serial MMIO base address
-    sw      $1, [$2, 4]                 ; Apply serial control mask
-    la      $2, serial_data             ; Find the address of serial data
-    sb      $0, [$2, 0]                 ; Initialize serial buffer length to 0
-    pop     $2, $1
-    ret
-
-; Disable the serial output
-serial_disable_tx:
-    push    $1
-    li      $1, SERIAL_ADDRESS
-    sw      $0, [$1, 4]                 ; Wipes serial control mask
-    pop     $1
-    ret
-
-; Byte to send should be in $1
-serial_buffer_tx_byte:
-    push    $2, $3, $4
-    la      $2, serial_data             ; Load address of the bss serial buffer
-    lb      $3, [$2, 0]                 ; Read the count out of the buffer
-    inc     $3                          ; Calculate the new storage location
-    add     $4, $3, $2                  ; Find the last storage location
-    sb      $1, [$4, 0]                 ; Save the byte into the bss buffer
-    sb      $3, [$2, 0]                 ; Save the increased length back
-    pop     $4, $3, $2
-    ret
-
-; Iterates through the buffer, sending all bytes
-serial_tx:
-    push    $1, $2, $3, $4
-    la      $2, serial_data             ; Load address of the bss serial buffer
-    lb      $3, [$2, 0]                 ; Read the count out of the buffer
-    b.eq    $3, $0, serial_tx_skip      ; Early exit if zero length
-    add     $3, $3, $2                  ; Calculate the last storage location
-    li      $4, SERIAL_ADDRESS          ; Load serial transmit buffer address
-serial_tx_loop:
-    inc     $2
-    lb      $1, [$2, 0]                 ; Read the current byte
-    sb      $1, [$4, 0]                 ; Send the byte to the serial tx MMIO
-    b.ne    $2, $3, serial_tx_loop      ; Check if last byte, loop if not
-    la      $2, serial_data
-    sb      $0, [$2, 0]                 ; Clear buffer count
-serial_tx_skip:
-    pop     $4, $3, $2, $1
-    ret
+; Set value, from $1
+serial_set_control:
+    di
+    push    $2
     
-.bss:
-serial_data:     .space 1, 256
+    li      $2, SERIAL_CONTROL
+    sw      $1, [$2, 0]
 
+    pop     $2
+    ei
+    ret
+
+; Retrieve the current status, into $2
+serial_status:
+    li      $2, SERIAL_STATUS
+    lw      $2, [$2, 0]
+    ret
+
+; Returns 0 if no data, other value if not, into $2
+serial_has_byte:
+    push    $1, $3
+    la      $1, serial_buffer_head
+    lb      $1, [$1, 0]
+    la      $2, serial_buffer_tail
+    lb      $2, [$2, 0]
+    sub     $2, $2, $1
+    pop     $3, $1
+    ret
+ 
+; Retrieve the oldest byte in the buffer, into $2. If there is none, reads 0.
+serial_read:
+    push    %lr
+    call    serial_has_byte
+    pop     %lr
+    b.eq    $2, $0, serial_read_end
+
+    push    $1, $3, $4
+    la      $1, serial_buffer
+    la      $3, serial_buffer_tail
+    lb      $4, [$3, 0]
+    add     $1, $1, $4
+    lb      $2, [$1, 0]
+    inc     $4
+    sb      $4, [$3, 0]
+    pop     $4, $3, $1
+
+serial_read_end:
+    ret
+
+; Send the current byte. Sets $2 = 0 if successful, $2 = 1 if not.
+serial_send:
+    li      $2, SERIAL_STATUS
+    lw      $2, [$2, 0]
+    andi    $2, $2, STATUS_TX_READY
+    b.eq    $2, $0, ser_not_ready       ; SERIAL_TX is high if ready
+
+    li      $2, SERIAL_DATA
+    sb      $1, [$2, 0]
+    clr     $2
+    ret
+
+ser_not_ready:
+    li      $2, 1
+    ret   
+
+serial_isr:
+    push    $1, $2, $3, $4, %lr
+
+    call    serial_status
+    andi    $2, $2, STATUS_RX_READY
+    b.eq    $2, $0, serial_isr_end
+    
+    li      $1, SERIAL_DATA
+    lb      $1, [$1, 0]
+    la      $2, serial_buffer
+    la      $3, serial_buffer_head
+    lb      $4, [$3, 0]
+    add     $2, $2, $4
+    sb      $1, [$2, 0]
+    inc     $4
+    sb      $4, [$3, 0]
+
+serial_isr_end:
+    pop     %lr, $4, $3, $2, $1
+    ret
+
+.data
+serial_buffer_head: .ubyte 0
+serial_buffer_tail: .ubyte 0
+serial_buffer: .space 1, 256

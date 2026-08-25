@@ -57,7 +57,7 @@ impl Cpu {
         self.state == CpuState::Halted
     }
 
-    fn check_interrupts(&mut self, bus: &SystemBus) {
+    fn check_interrupts(&mut self, bus: &mut SystemBus) {
         if !self.creg.sr().interrupt_enable() {
             return;
         }

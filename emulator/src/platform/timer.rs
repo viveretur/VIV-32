@@ -53,7 +53,7 @@ impl Timer {
         self.control & CONTROL_IRQ_PENDING != 0
     }
 
-    fn interrupt_asserted(&self) -> bool {
+    fn interrupt_asserted(&mut self) -> bool {
         self.control & CONTROL_IRQ_ENABLE != 0 && self.interrupt_pending()
     }
 
@@ -209,7 +209,7 @@ impl BusDevice for Timer {
         }
     }
 
-    fn interrupt_asserted(&self) -> bool {
+    fn interrupt_asserted(&mut self) -> bool {
         Timer::interrupt_asserted(self)
     }
 }
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn new_timer_starts_clear_and_disabled() {
-        let timer = Timer::new();
+        let mut timer = Timer::new();
 
         assert_eq!(timer.read_counter(), 0);
         assert_eq!(timer.read_control(), 0);
