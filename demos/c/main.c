@@ -1,3 +1,3 @@
 int main() {
-  return 77;
+  return 44;
 }

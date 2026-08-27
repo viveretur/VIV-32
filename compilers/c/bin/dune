@@ -1,9 +1,4 @@
 (executable
- (public_name lexer)
- (name lexer)
- (libraries c))
-
-(executable
- (public_name parser)
- (name parser)
+ (public_name compiler)
+ (name compiler)
  (libraries c))

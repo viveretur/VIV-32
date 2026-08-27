@@ -33,8 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         linker.add(file)?;
     }
 
-    let output_file = File::create(&args.output)?;
-    linker.link(output_file)?;
+    linker.link(&args.output)?;
 
     Ok(())
 }

@@ -97,7 +97,7 @@ serial_isr_end:
     pop     %lr, $4, $3, $2, $1         ; Restore used registers
     ret
 
-.data
-serial_buffer_head: .ubyte 0
-serial_buffer_tail: .ubyte 0
+.bss
+serial_buffer_head: .space 1, 1
+serial_buffer_tail: .space 1, 1
 serial_buffer: .space 1, 256

@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write};
+use std::{fs::File, io::Write, path::PathBuf};
 
 use viv32_vo::{Bss, ObjectFile, Relocation, RelocationBase, RelocationSign, Symbol};
 
@@ -58,9 +58,10 @@ impl Linker {
         Ok(())
     }
 
-    pub fn link(&mut self, mut file: File) -> Result<(), LinkerError> {
+    pub fn link(&mut self, path: &PathBuf) -> Result<(), LinkerError> {
         self.map_bss_to_symbol()?;
         self.apply_relocations()?;
+        let mut file = File::create(path)?;
         file.write_all(&self.text)?;
         file.write_all(&self.rodata)?;
         file.write_all(&self.data)?;

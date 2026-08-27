@@ -3,7 +3,11 @@
 DEMO_DIR := $(abspath .)
 DEMOS_DIR := $(abspath ..)
 ROOT_DIR := $(abspath ../..)
+COMPILER_DIR := $(ROOT_DIR)/compilers/c
 
+LEXER := dune exec --root $(COMPILER_DIR) lexer --
+PARSER := dune exec --root $(COMPILER_DIR) parser --
+COMPILER := dune exec --root $(COMPILER_DIR) compiler --
 TOOLCHAIN_MANIFEST := $(ROOT_DIR)/toolchain/Cargo.toml
 EMULATOR_MANIFEST  := $(ROOT_DIR)/emulator/Cargo.toml
 
@@ -16,8 +20,12 @@ LD  := cargo run -q --manifest-path $(TOOLCHAIN_MANIFEST) -p viv32-ld --
 DIS := cargo run -q --manifest-path $(TOOLCHAIN_MANIFEST) -p viv32-dis --
 EMU := cargo run -q --manifest-path $(EMULATOR_MANIFEST) --
 
+C_NAMES := $(notdir $(C_SRCS))
 ASM_NAMES := $(notdir $(ASM_SRCS))
-OBJS := $(patsubst %.asm,$(BUILD_DIR)/%.vo,$(ASM_NAMES))
+
+ASM_OBJS := $(patsubst %.asm,$(BUILD_DIR)/%.vo,$(ASM_NAMES))
+C_OBJS   := $(patsubst %.c, $(BUILD_DIR)/%.vo,$(C_NAMES))
+OBJS := $(ASM_OBJS) $(C_OBJS)
 
 EMU_ARGS ?=
 DIS_ARGS ?=
@@ -29,12 +37,22 @@ all: $(BIN)
 $(BIN): $(OBJS)
 	@$(LD) $(OBJS) -o $@
 
+$(BUILD_DIR)/%.asm: %.c
+	@mkdir -p $(dir $@)
+	@$(COMPILER) $< -o $@ $(COMPILER_FLAGS)
+
+# Hand-written assembly from the demo directory
 $(BUILD_DIR)/%.vo: %.asm
 	@mkdir -p $(dir $@)
 	@$(ASM) $< -o $@
 
+# Library assembly
 $(BUILD_DIR)/%.vo: ../lib/%.asm
 	@mkdir -p $(dir $@)
+	@$(ASM) $< -o $@
+
+# Compiler-generated assembly already in BUILD_DIR
+$(BUILD_DIR)/%.vo: $(BUILD_DIR)/%.asm
 	@$(ASM) $< -o $@
 
 $(BUILD_DIR)/device_config.toml: device_config.toml
