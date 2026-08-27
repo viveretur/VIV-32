@@ -1,0 +1,22 @@
+(lang dune 3.24)
+
+(name c)
+
+(generate_opam_files true)
+
+(source
+ (github viveretur/VIV-32))
+
+(authors "viveretur")
+
+(maintainers "viveretur")
+
+(license ../../LICENSE)
+
+(documentation ../../docs)
+
+(package
+ (name c)
+ (synopsis "C-compiler for VIV-32")
+ (description "A C compiler targetting the VIV-32 architecture")
+ (depends ocaml))
