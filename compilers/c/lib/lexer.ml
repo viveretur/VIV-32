@@ -47,6 +47,29 @@ let scan_constant_number source start =
   (finish, Token.ConstantInt (int_of_string text))
 
 
+let scan_negate source start =
+  let len = String.length source in
+
+  let rec find_end index =
+    if index < len then
+      match source.[index] with
+        | '-' -> find_end (index + 1)
+        | _ -> index
+      else
+        index
+  in
+
+  let finish = find_end (start + 1) in
+  let text = String.sub source start (finish - start) in
+
+  let kind = match text with
+    | "-" -> Token.OperatorNegate
+    | "--" -> Token.OperatorDecrement
+    | x -> failwith ("Unsupported token:" ^ x)
+  in
+  (finish, kind)
+    
+
 let lex source =
   let rec loop index line_no line_start tokens =
     if index >= String.length source then
@@ -88,6 +111,20 @@ let lex source =
                   line_no;
                   column_no = index - line_start + 1;
               } in loop (index + 1) line_no line_start (token :: tokens)
+
+        | '~' -> let token = {
+                  Token.kind = Token.OperatorComplement;
+                  line_no;
+                  column_no = index - line_start + 1;
+              } in loop (index + 1) line_no line_start (token :: tokens)
+
+        | '-' ->
+              let next, kind = scan_negate source index in
+              let token = {
+                  Token.kind = Token.OperatorNegate;
+                  line_no;
+                  column_no = index - line_start + 1;
+              } in loop next line_no line_start (token :: tokens)
 
         | '0'..'9' ->
               let next, kind = scan_constant_number source index in

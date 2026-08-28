@@ -1,6 +1,16 @@
-let compile_expression register = function
+let rec compile_expression register = function
   | Ast.ConstantInt value ->
       Printf.sprintf "    li      $%d, %d\n" register value
+  | Ast.Unary (operator, expression) ->
+      let expression_code = compile_expression register expression in
+      let operator_code =
+        match operator with
+          | Ast.OperatorComplement ->
+              Printf.sprintf "    not     $%d, $%d\n" register register
+          | Ast.OperatorNegate ->
+              Printf.sprintf "    neg     $%d, $%d\n" register register
+      in
+      expression_code ^ operator_code
 
 let compile_statement = function
   | Ast.Return expr ->

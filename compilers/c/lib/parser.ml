@@ -1,77 +1,61 @@
-let parse_expression (tokens : Token.t array) index =
+let expect (tokens : Token.t array) index expected message =
+  if tokens.(index).kind = expected then
+    index + 1
+  else
+    failwith message
+
+
+let expect_identifier (tokens : Token.t array) index =
+  match tokens.(index).kind with
+    | Token.Identifier name -> (index + 1, name)
+    | _ -> failwith "Expected identifier"
+
+
+let rec parse_expression (tokens : Token.t array) index =
   match tokens.(index).kind with
     | Token.ConstantInt value -> (index + 1, Ast.ConstantInt value)
+    | Token.OperatorComplement ->
+        let next, expression = parse_expression tokens (index + 1) in
+        (next, Ast.Unary (Ast.OperatorComplement, expression))
+    | Token.OperatorNegate ->
+        let next, expression = parse_expression tokens (index + 1) in
+        (next, Ast.Unary (Ast.OperatorNegate, expression))
+    | Token.ParenOpen ->
+        let next, expression = parse_expression tokens (index + 1) in
+        begin
+          match tokens.(next).kind with
+            | Token.ParenClose -> (next + 1, expression)
+            | _ -> failwith "Expected ')'"
+        end
     | _ -> failwith "Expected expression"
 
 
 let parse_statement (tokens : Token.t array) index =
   match tokens.(index).kind with
-  | Token.KeywordReturn ->
-      let next, expression =
-        parse_expression tokens (index + 1)
-      in
+    | Token.KeywordReturn ->
+        let next, expression = parse_expression tokens (index + 1) in
+        begin
+          match tokens.(next).kind with
+            | Token.Semicolon -> (next + 1, Ast.Return expression)
+            | _ -> failwith "Expected ';' after return expression"
+        end
+    | _ -> failwith "Expected statement"
 
-      begin
-        match tokens.(next).kind with
-        | Token.Semicolon ->
-            (next + 1, Ast.Return expression)
-        | _ ->
-            failwith "Expected ';' after return expression"
-      end
 
-  | _ ->
-      failwith "Expected statement"
-
-  
 let parse_function (tokens : Token.t array) index =
-  match tokens.(index).kind with
-  | Token.KeywordInt ->
-      begin
-        match tokens.(index + 1).kind with
-        | Token.Identifier name ->
-            begin
-              match tokens.(index + 2).kind with
-              | Token.ParenOpen ->
-                  begin
-                    match tokens.(index + 3).kind with
-                    | Token.ParenClose ->
-                        begin
-                          match tokens.(index + 4).kind with
-                          | Token.BraceOpen ->
-                              let next, statement =
-                                parse_statement tokens (index + 5)
-                              in
+  let index = expect tokens index Token.KeywordInt "Expected 'int'" in
 
-                              begin
-                                match tokens.(next).kind with
-                                | Token.BraceClose ->
-                                    (next + 1,
-                                     {
-                                       Ast.name;
-                                       body = statement;
-                                     })
-                                | _ ->
-                                    failwith "Expected '}'"
-                              end
+  let index, name = expect_identifier tokens index in
+  let index = expect tokens index Token.ParenOpen "Expected '('" in
+  let index = expect tokens index Token.ParenClose "Expected ')'" in
+  let index = expect tokens index Token.BraceOpen "Expected '{'" in
+  let index, statement = parse_statement tokens index in
+  let index = expect tokens index Token.BraceClose "Expected '}'" in
 
-                          | _ ->
-                              failwith "Expected '{'"
-                        end
-
-                    | _ ->
-                        failwith "Expected ')'"
-                  end
-
-              | _ ->
-                  failwith "Expected '('"
-            end
-
-        | _ ->
-            failwith "Expected function name"
-      end
-
-  | _ ->
-      failwith "Expected 'int'"
+  (index, {
+    Ast.name;
+    body = statement;
+  })
 
 
 let parse_program tokens index =

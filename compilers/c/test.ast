@@ -1,4 +1,0 @@
-Program
-  Function main
-    Return
-      ConstantInt 77
