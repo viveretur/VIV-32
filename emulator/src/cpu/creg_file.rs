@@ -122,7 +122,9 @@ impl Lifecycle for CregFile {
             .set(self.evbase + ExceptionCause::Reset.vector_offset());
         self.sr.reset();
         self.epc = 0;
+        self.esr.reset();
         self.ecause = ExceptionCause::Reset as u32;
+        self.edata = 0;
         self.evbase = 0;
     }
 

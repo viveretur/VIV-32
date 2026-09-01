@@ -1,51 +1,68 @@
-The VIV-32 instruction set is provisional in v0.1. This chapter defines the architectural meaning of each instruction. Opcode assignments and binary layouts are defined separately by the instruction encoding and opcode map.
+This chapter defines the architectural meaning of each instruction. Opcode
+assignments and binary layouts are defined separately by the instruction
+encoding and opcode map.
 
-\section{Instruction Notation}
+\section{Notation}
+
+\subsection{Instruction Notation}
 
 \begin{itemize}
-\item \(rd\): destination general-purpose register.
-\item \(rd0\): first destination general-purpose register.
-\item \(rd1\): second destination general-purpose register.
-\item \(ra\): first source general-purpose register.
-\item \(rb\): second source general-purpose register.
-\item \(rs\): source general-purpose register.
-\item \(imm\): immediate value encoded in the instruction.
-\item \(offset\): signed PC-relative or base-relative offset.
-\item \PC: program counter.
-\item \SR: processor status register.
-\item \flagN: negative flag.
-\item \flagZ: zero flag.
-\item \flagC: carry flag.
-\item \flagV: overflow flag.
-\item \flagE: arithmetic error flag.
+\item \code{\$}: prefix for general-purpose registers.
+\item \code{\#}: prefix for floating-point registers.
+\item \code{\%}: prefix for named control registers.
+\item \code{rd}: destination register.
+\item \code{rd0}: first destination register.
+\item \code{rd1}: second destination register.
+\item \code{ra}: first source register.
+\item \code{rb}: second source register.
+\item \code{rs}: source register.
+\item \code{immN}: immediate N-bit value encoded in the instruction.
+\item \code{offsetN}: signed N-bit \code{\%pc}- or base-relative offset.
+\item \code{x.y}: bit \code{y} of register \code{x}.
+\item \code{\%pc}: program counter.
+\item \code{\%sr}: processor status register.
+\item \code{N}: negative flag.
+\item \code{Z}: zero flag.
+\item \code{C}: carry flag.
+\item \code{V}: overflow flag.
+\item \code{I}: infinity flag.
+\item \code{U}: underflow flag.
+\item \code{X}: inexact flag.
+\item \code{E}: arithmetic error flag.
 \end{itemize}
 
 \subsection{Assignment Notation}
 
 \begin{itemize}
-\item The notation \ensuremath{rd \assign x} means that value \(x\) is written to register \(rd\).
-\item The notation \ensuremath{\PC \assign x} means that execution continues from address \(x\).
-\item The notation \mem{x} means memory at address \(x\).
-\item The notation \sext{x} means sign-extension of \(x\) to 32 bits.
-\item The notation \zext{x} means zero-extension of \(x\) to 32 bits.
-\item The notation \(x:y\) means a register pair, with \(x\) holding the low 32 bits and \(y\) holding the high 32 bits unless otherwise specified.
+\item The notation \code{\$rd}~\assign~\code{x} means that value \code{x} is
+written to register \code{\$rd}.
+\item The notation \code{\%pc}~\assign~\code{x} means that execution continues
+from address \code{x}.
+\item The notation \code{[x]} means memory at address \code{x}.
+\item The notation \code{SEXT(x)} means sign-extension of \code{x} to 32 bits.
+\item The notation \code{ZEXT(x)} means zero-extension of \code{x} to 32 bits.
+\item The notation \code{a:b} means a register pair, with \code{a} holding the
+upper 32 bits and \code{b} holding the lower 32 bits unless otherwise specified.
 \end{itemize}
 
 \subsection{Immediate Values}
 
 \begin{itemize}
-\item Unless otherwise specified, immediate operands are sign-extended to 32 bits before use.
+\item Unless otherwise specified, immediate operands are sign-extended to 32
+bits before use.
 \item Arithmetic immediate instructions sign-extend their immediate operands.
 \item Logical immediate instructions zero-extend their immediate operands.
 \item Shift counts are interpreted as unsigned values.
-\item Bit indexes are interpreted as unsigned values in the range 0--31.
+\item Bit indexes are interpreted as unsigned values in the range 0--31 for
+general purpose registers, and 0--63 for floating-point registers.
 \end{itemize}
 
-\section{Conditional Suffixes}
+\subsection{Conditional Suffixes}
 
 \begin{itemize}
 \item Conditional instruction mnemonics use a dot-separated condition suffix.
-\item Register-comparison branches use the form \code{b.<cond>}.
+\item Register-comparison branches use the form \code{b[d].<cond>}, where
+\code{d} signifies the operands are floating-point registers.
 \item Flag-based branches use the form \code{bf.<cond>}.
 \item Future conditional instructions should use the same suffix convention.
 \end{itemize}
@@ -55,639 +72,1042 @@ The VIV-32 instruction set is provisional in v0.1. This chapter defines the arch
 \hline
 Suffix & Meaning & Basis \\
 \hline
-\code{.eq}  & equal / zero & \ensuremath{\flagZ = 1} \\
-\code{.ne}  & not equal / non-zero & \ensuremath{\flagZ = 0} \\
-\code{.lt}  & signed less than & signed comparison \\
-\code{.le}  & signed less than or equal & signed comparison \\
-\code{.gt}  & signed greater than & signed comparison \\
-\code{.ge}  & signed greater than or equal & signed comparison \\
-\code{.ltu} & unsigned less than & unsigned comparison \\
-\code{.leu} & unsigned less than or equal & unsigned comparison \\
-\code{.gtu} & unsigned greater than & unsigned comparison \\
-\code{.geu} & unsigned greater than or equal & unsigned comparison \\
-\code{.cs}  & carry set & \ensuremath{\flagC = 1} \\
-\code{.cc}  & carry clear & \ensuremath{\flagC = 0} \\
-\code{.vs}  & overflow set & \ensuremath{\flagV = 1} \\
-\code{.vc}  & overflow clear & \ensuremath{\flagV = 0} \\
-\code{.es}  & arithmetic error set & \ensuremath{\flagE = 1} \\
-\code{.ec}  & arithmetic error clear & \ensuremath{\flagE = 0} \\
+\code{.eq}  & equal & register comparison \\
+\code{.ne}  & not equal & register comparison \\
+\code{.lt}  & signed less than & signed register comparison \\
+\code{.le}  & signed less than or equal & signed register comparison \\
+\code{.gt}  & signed greater than & signed register comparison \\
+\code{.ge}  & signed greater than or equal & signed register comparison \\
+\code{.ltu} & unsigned less than & unsigned register comparison \\
+\code{.leu} & unsigned less than or equal & unsigned register comparison \\
+\code{.gtu} & unsigned greater than & unsigned register comparison \\
+\code{.geu} & unsigned greater than or equal & unsigned register comparison \\
+\hline
+\end{tabular}
+\end{center}
+
+Flag-based branches use a separate set of suffixes:
+
+\begin{center}
+\begin{tabular}{lll}
+\hline
+Suffix & Meaning & Basis \\
+\hline
+\code{.ns} & negative set & \code{N~=~1} \\
+\code{.nc} & negative clear & \code{N~=~0} \\
+\code{.zs} & zero set & \code{Z~=~1} \\
+\code{.zc} & zero clear & \code{Z~=~0} \\
+\code{.cs} & carry set & \code{C~=~1} \\
+\code{.cc} & carry clear & \code{C~=~0} \\
+\code{.vs} & overflow set & \code{V~=~1} \\
+\code{.vc} & overflow clear & \code{V~=~0} \\
+\code{.es} & arithmetic error set & \code{E~=~1} \\
+\code{.ec} & arithmetic error clear & \code{E~=~0} \\
+\code{.is} & infinity set & \code{I~=~1} \\
+\code{.ic} & infinity clear & \code{I~=~0} \\
+\code{.us} & underflow set & \code{U~=~1} \\
+\code{.uc} & underflow clear & \code{U~=~0} \\
+\code{.xs} & inexact set & \code{X~=~1} \\
+\code{.xc} & inexact clear & \code{X~=~0} \\
 \hline
 \end{tabular}
 \end{center}
 
 \section{Flag Behaviour}
 
+Condition flags describe the result or status of the most recent flag-setting
+operation.
+
 \begin{itemize}
 \item Arithmetic and logical instructions update condition flags by default.
 \item Comparison instructions update condition flags without storing a result.
-\item Load and store instructions do not update condition flags.
+\item Load instructions update condition flags according to the resulting
+register value.
+\item Store instructions do not update condition flags.
 \item Branch, jump, call, and return instructions do not update condition flags.
 \item System instructions update condition flags only when explicitly specified.
 \end{itemize}
 
+Unless otherwise specified by an instruction, all condition flags are updated
+or cleared according to the rules in this section.
+
 \subsection{Negative Flag}
 
+The negative flag \code{N} indicates that the numeric result is negative.
+
 \begin{itemize}
-\item The negative flag \flagN\ is set when the result of a flag-setting operation has bit 31 set.
-\item The negative flag \flagN\ is cleared when the result has bit 31 clear.
+\item For integer results, \code{N} is set when bit 31 of the result is set.
+\item For floating-point results, \code{N} is set when the numeric binary64
+result is negative.
+\item Floating-point \code{+0.0} and \code{-0.0} do not set \code{N}.
 \end{itemize}
 
 \subsection{Zero Flag}
 
+The zero flag \code{Z} indicates that the numeric result is zero.
+
 \begin{itemize}
-\item The zero flag \flagZ\ is set when the result of a flag-setting operation is zero.
-\item The zero flag \flagZ\ is cleared when the result is non-zero.
+\item For integer and logical results, \code{Z} is set when all result bits are
+zero.
+\item For floating-point results, \code{Z} is set when the result is either
+\code{+0.0} or \code{-0.0}.
+\item Otherwise, \code{Z} is cleared.
 \end{itemize}
 
 \subsection{Carry Flag}
 
+The carry flag \code{C} is used by integer arithmetic.
+
 \begin{itemize}
-\item For addition, the carry flag \flagC\ is set when the operation produces an unsigned carry out of bit 31.
-\item For subtraction, the carry flag \flagC\ is set when no unsigned borrow is required.
-\item For subtraction, the carry flag \flagC\ is cleared when an unsigned borrow is required.
-\item For logical operations, the carry flag \flagC\ is cleared unless otherwise specified.
+\item For integer addition, \code{C} is set when an unsigned carry is produced
+from bit 31.
+\item For integer subtraction, \code{C} is set when no unsigned borrow is
+required and cleared when a borrow is required.
+\item For successful integer division, \code{C} is set when the remainder is
+non-zero.
+\item Floating-point operations clear \code{C} unless otherwise specified.
+\item Logical operations clear \code{C} unless otherwise specified.
 \end{itemize}
 
 \subsection{Overflow Flag}
 
+The overflow flag \code{V} is used by integer arithmetic.
+
 \begin{itemize}
-\item The overflow flag \flagV\ is set when a signed arithmetic operation overflows the signed 32-bit two's complement range.
-\item The overflow flag \flagV\ is cleared when no signed overflow occurs.
-\item For logical operations, the overflow flag \flagV\ is cleared unless otherwise specified.
+\item For signed integer arithmetic, \code{V} is set when the mathematical
+result cannot be represented as a signed 32-bit two's-complement integer.
+\item Floating-point operations clear \code{V} unless otherwise specified.
+\item Logical operations clear \code{V} unless otherwise specified.
 \end{itemize}
 
 \subsection{Arithmetic Error Flag}
 
+The arithmetic error flag \code{E} indicates an exceptional or invalid
+arithmetic or conversion condition that does not trap in VIV-32 v\version{}.
+
 \begin{itemize}
-\item The arithmetic error flag \flagE\ is set when an arithmetic operation produces an exceptional condition that does not trap in VIV-32 v0.1.
-\item Integer divide-by-zero sets \flagE.
-\item Arithmetic instructions that complete normally clear \flagE, unless otherwise specified.
+\item Integer divide-by-zero sets \code{E}.
+\item Integer division that cannot produce a representable quotient sets
+\code{E}.
+\item Floating-point divide-by-zero sets \code{E}.
+\item A floating-point operation producing \code{NaN} sets \code{E}.
+\item An unordered floating-point comparison involving \code{NaN} sets
+\code{E}.
+\item A floating-point to integer conversion of \code{NaN}, infinity, or a
+value outside the destination integer range sets \code{E}.
+\item Arithmetic and conversion operations producing an ordinary valid result
+clear \code{E}, unless otherwise specified.
+\end{itemize}
+
+\subsection{Infinity Flag}
+
+The infinity flag \code{I} indicates that a floating-point result is infinite.
+
+\begin{itemize}
+\item \code{I} is set when the resulting floating-point value is positive or
+negative infinity.
+\item The presence of infinity does not by itself imply an arithmetic error;
+\code{E} is determined by the operation that produced or processed the
+value.
+\item Integer operations clear \code{I} unless otherwise specified.
+\end{itemize}
+
+\subsection{Underflow Flag}
+
+The underflow flag \code{U} indicates that a floating-point result is too small
+in magnitude to be represented normally in the destination floating-point
+format.
+
+\begin{itemize}
+\item \code{U} is set when a floating-point arithmetic or conversion result
+enters the underflow range of its destination format.
+\item For binary64 arithmetic, the destination format is binary64.
+\item For binary64-to-binary32 conversion, the destination format is binary32.
+\item Integer operations clear \code{U} unless otherwise specified.
+\end{itemize}
+
+\subsection{Inexact Flag}
+
+The inexact flag \code{X} indicates that a numeric result required rounding.
+
+\begin{itemize}
+\item \code{X} is set when the mathematically exact floating-point or conversion
+result cannot be represented exactly in the destination format.
+\item \code{X} may be set independently of \code{U}, \code{I}, or \code{E}.
+\item Integer operations clear \code{X} unless otherwise specified.
 \end{itemize}
 
 \section{Arithmetic Instructions}
 
-\subsection{\code{add}}
+Arithmetic operations can be performed on both general purpose and
+floating-point registers. General purpose, single-target-register operations
+wrap modulo \(2^{32}\).
+
+\subsection{\code{add, addd}}
 
 \begin{itemize}
-\item Syntax: \code{add rd, ra, rb}
-\item Operation: \ensuremath{rd \assign ra + rb}
-\item The result wraps modulo \(2^{32}\).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagE\ is cleared.
+\item Syntax: \code{add \$rd, \$ra, \$rb} | \code{addd \#rd, \#ra, \#rb}
+\item Operation: \code{rd~\assign~ra~+~rb}
 \end{itemize}
 
 \subsection{\code{addi}}
 
 \begin{itemize}
-\item Syntax: \code{addi rd, ra, imm}
-\item Operation: \ensuremath{rd \assign ra + \sext{imm}}
-\item The result wraps modulo \(2^{32}\).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagE\ is cleared.
+\item Syntax: \code{addi \$rd, \$ra, imm16}
+\item Operation: \code{rd~\assign~ra~+~SEXT(imm16)}
 \end{itemize}
 
-\subsection{\code{sub}}
+\subsection{\code{sub, subd}}
 
 \begin{itemize}
-\item Syntax: \code{sub rd, ra, rb}
-\item Operation: \ensuremath{rd \assign ra - rb}
-\item The result wraps modulo \(2^{32}\).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ is set when no unsigned borrow is required.
-\item \flagE\ is cleared.
+\item Syntax: \code{sub \$rd, \$ra, \$rb | subd \#rd, \#ra, \#rb}
+\item Operation: \code{rd~\assign~ra~--~rb}
 \end{itemize}
 
 \subsection{\code{subi}}
 
 \begin{itemize}
-\item Syntax: \code{subi rd, ra, imm}
-\item Operation: \ensuremath{rd \assign ra - \sext{imm}}
-\item The result wraps modulo \(2^{32}\).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ is set when no unsigned borrow is required.
-\item \flagE\ is cleared.
+\item Syntax: \code{subi \$rd, \$ra, \$imm16}
+\item Operation: \code{rd~\assign~ra~--~SEXT(imm16)}
 \end{itemize}
 
-\subsection{\code{neg}}
+\subsection{\code{neg, negd}}
 
 \begin{itemize}
-\item Syntax: \code{neg rd, ra}
-\item Operation: \ensuremath{rd \assign 0 - ra}
-\item The result wraps modulo \(2^{32}\).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagE\ is cleared.
+\item Syntax: \code{neg \$rd, \$ra | negd \#rd, \#ra}
+\item Operation: \code{rd~\assign~0~--~ra}
 \end{itemize}
 
 \section{Logical Instructions}
 
-\subsection{\code{and}}
+Logical instructions operate on the raw bit representation of their operands.
+This behaviour is the same for general-purpose and floating-point registers;
+floating-point register contents are not interpreted as IEEE-754 values for
+the purposes of logical operations or flag generation.
+
+For a logical operation:
 
 \begin{itemize}
-\item Syntax: \code{and rd, ra, rb}
-\item Operation: \ensuremath{rd \assign ra \bitand rb}
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item \flagN\ is set from the most-significant bit of the result:
+bit 31 for a general-purpose register and bit 63 for a floating-point register.
+\item \flagZ\ is set if all bits of the result are zero.
+\item \flagC\ and \flagV\ are cleared.
+\item \flagE\ is cleared.
+\item \flagI, \flagU, and \flagX\ are cleared.
+\end{itemize}
+
+\subsection{\code{and, andd}}
+
+\begin{itemize}
+\item Syntax: \code{and \$rd, \$ra, \$rb | andd \#rd, \#ra, \#rb}
+\item Operation: \code{rd~\assign~ra~\&~rb}
 \end{itemize}
 
 \subsection{\code{andi}}
 
 \begin{itemize}
-\item Syntax: \code{andi rd, ra, imm}
-\item Operation: \ensuremath{rd \assign ra \bitand \sext{imm}}
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item Syntax: \code{andi \$rd, \$ra, imm16}
+\item Operation: \code{rd~\assign~ra~\&~ZEXT(imm16)}
 \end{itemize}
 
-\subsection{\code{or}}
+\subsection{\code{or, ord}}
 
 \begin{itemize}
-\item Syntax: \code{or rd, ra, rb}
-\item Operation: \ensuremath{rd \assign ra \bitor rb}
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item Syntax: \code{or \$rd, \$ra, \$rb | ord \#rd, \#ra, \#rb}
+\item Operation: \code{rd~\assign~ra~|~rb}
 \end{itemize}
 
 \subsection{\code{ori}}
 
 \begin{itemize}
-\item Syntax: \code{ori rd, ra, imm}
-\item Operation: \ensuremath{rd \assign ra \bitor \sext{imm}}
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item Syntax: \code{ori \$rd, \$ra, imm16}
+\item Operation: \code{rd~\assign~ra~|~ZEXT(imm16)}
 \end{itemize}
 
-\subsection{\code{xor}}
+\subsection{\code{xor, xord}}
 
 \begin{itemize}
-\item Syntax: \code{xor rd, ra, rb}
-\item Operation: \ensuremath{rd \assign ra \bitxor rb}
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item Syntax: \code{xor \$rd, \$ra, \$rb | xord \#rd, \#ra, \#rb}
+\item Operation: \code{rd~\assign~ra~\^~rb}
 \end{itemize}
 
 \subsection{\code{xori}}
 
 \begin{itemize}
-\item Syntax: \code{xori rd, ra, imm}
-\item Operation: \ensuremath{rd \assign ra \bitxor \sext{imm}}
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item Syntax: \code{xori \$rd, \$ra, imm16}
+\item Operation: \code{rd~\assign~ra~\^~ZEXT(imm16)}
 \end{itemize}
 
-\subsection{\code{not}}
+\subsection{\code{not, notd}}
 
 \begin{itemize}
-\item Syntax: \code{not rd, ra}
-\item Operation: \ensuremath{rd \assign \bitnot ra}
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item Syntax: \code{not \$rd, \$ra | notd \#rd, \#ra}
+\item Operation: \code{rd~\assign~\~~ra}
 \end{itemize}
 
 \section{Comparison Instructions}
 
-\subsection{\code{cmp}}
+Floating-point comparisons use IEEE-754 binary64 numerical comparison semantics.
+
+If either floating-point operand is \code{NaN}, the comparison is unordered.
+For a flag-setting floating-point comparison, an unordered comparison sets
+\flagE\ and clears the ordered comparison flags. No ordering relationship is
+considered true for an unordered comparison.
+
+For direct floating-point register-comparison branches, unordered comparison
+behaviour is defined by the branch condition itself: \code{bd.eq}, \code{bd.lt},
+\code{bd.le}, \code{bd.gt}, and \code{bd.ge} do not branch, while \code{bd.ne} branches.
+
+Floating-point comparison does not compare IEEE-754 encodings bitwise; values are
+compared numerically. In particular, \code{+0.0} and \code{-0.0} compare equal.
+
+\subsection{\code{cmp, cmpd}}
 
 \begin{itemize}
-\item Syntax: \code{cmp ra, rb}
-\item Operation: compute \ensuremath{ra - rb} for flag results only.
-\item No general-purpose register is modified.
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ is set when no unsigned borrow is required.
-\item \flagE\ is cleared.
+  \item Syntax: \code{cmp \$ra, \$rb | cmpd \#ra, \#rb}
+  \item Operation: compares \code{ra} with \code{rb} and updates the condition
+        flags without storing a result.
+  \item \code{cmp} performs a 32-bit integer comparison. The comparison updates
+        the integer condition flags as though \code{ra - rb} had been evaluated,
+        but not arithmetic result is written to a register.
+  \item \code{cmpd} performs an IEEE 754 binary64 numerical comparison.
+        \code{Z} is set when the operands compare equal and \code{N} is set when
+        \code{ra} compares less than \code{rb}. \code{C} and \code{V} are cleared.
+  \item If either operand of \code{cmpd} is \code{NaN}, the comparison is unordered.
+        \code{E} is set and the ordered comparison flags are cleared.
+  \item Only \code{\%sr} is modified.
 \end{itemize}
 
 \subsection{\code{cmpi}}
 
 \begin{itemize}
-\item Syntax: \code{cmpi ra, imm}
-\item Operation: compute \ensuremath{ra - \sext{imm}} for flag results only.
-\item No general-purpose register is modified.
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ is set when no unsigned borrow is required.
-\item \flagE\ is cleared.
+\item Syntax: \code{cmpi \$ra, imm16}
+\item Operation: computes \code{ra~--~SEXT(imm16)} for flag results only.
+\item Only \code{\%sr} is modified.
+\end{itemize}
+
+\subsection{btst, btstd}
+
+\begin{itemize}
+\item Syntax: \code{btst \$ra, imm14 | btstd \#ra, imm14}
+\item Operation: test bit \code{imm14} of the raw bit representation of \code{ra}.
+\item For \code{btst}, valid bit indices are \code{0--31}.
+\item For \code{btstd}, valid bit indices are \code{0--63}.
+\item On a successful bit test:
+      \begin{itemize}
+      \item Z is set if the selected bit is clear, and cleared if the selected bit is set.
+      \item N, C, V, E, I, U, and X are cleared.
+      \end{itemize}
+      \item If \code{imm14} is outside the valid bit-index range:
+      \begin{itemize}
+      \item E is set.
+      \item N, Z, C, V, I, U, and X are cleared.
+      \end{itemize}
+\item No general-purpose or floating-point register is modified.
 \end{itemize}
 
 \section{Shift Instructions}
 
-\subsection{Shift Carry Behaviour}
+Shift instructions that use a register to hold the shift value always use a
+general purpose register. These instructions do not take the underlying format
+into account, so while their use on floating-point registers is nonsensical from
+a floating-point perspective, they open up the possibility of 64-bit integer
+manipulations for those who need such functionality.
+
+\subsection{Shift Register Behaviour}
+
+Shift instructions operate on the raw bit representation of the source
+register. This behaviour is the same for general-purpose and floating-point
+registers; floating-point register contents are not interpreted as IEEE-754
+values for the purposes of shift operations or flag generation.
+
+For a successful shift operation:
 
 \begin{itemize}
-  \item For shift instructions, \flagC\ receives the last bit shifted out when the shift count is non-zero.
-  \item If the shift count is zero, \flagC\ is left unchanged.
-  \item Shift instructions clear \flagV\ and \flagE.
-  \item Shift instructions update \flagN\ and \flagZ\ from the final shifted result.
+\item \flagN\ is set from the most-significant bit of the result:
+bit 31 for a general-purpose register and bit 63 for a floating-point register.
+\item \flagZ\ is set if all bits of the result are zero.
+\item \flagC\ contains the last bit shifted out of the register.
+\item \flagV\ and \flagE\ are cleared.
+\item \flagI, \flagU, and \flagX\ are cleared.
 \end{itemize}
 
-\subsection{\code{shl}}
+If the shift count is greater than or equal to the bit-width of the target register:
 
 \begin{itemize}
-\item Syntax: \code{shl rd, ra, rb}
-\item Operation: \ensuremath{rd \assign ra << (rb \bitand 31)}
+\item \flagE\ is set.
+\item \flagN, \flagZ, \flagC, \flagV, \flagI, \flagU, and \flagX\ are cleared.
+\item The destination register is left unchanged.
+\end{itemize}
+
+\subsection{\code{shl, shld}}
+
+\begin{itemize}
+\item Syntax: \code{shl \$rd, \$ra, \$rb | shld \#rd, \#ra, \$rb }
+\item Operation: \code{rd~\assign~ra~<{}<~rb}
 \item Vacated low bits are filled with zero.
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ receives the last bit shifted out, if the shift count is non-zero.
-\item \flagV\ is cleared.
-\item \flagE\ is cleared.
 \end{itemize}
 
-\subsection{\code{shli}}
+\subsection{\code{shli, shldi}}
 
 \begin{itemize}
-\item Syntax: \code{shli rd, ra, imm}
-\item Operation: \ensuremath{rd \assign ra << (imm \bitand 31)}
+\item Syntax: \code{shli \$rd, \$ra, imm14 | shldi \#rd, \#ra, imm14}
+\item Operation: \code{rd~\assign~ra~<{}<~imm14}
 \item Vacated low bits are filled with zero.
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ receives the last bit shifted out, if the shift count is non-zero.
-\item \flagV\ is cleared.
-\item \flagE\ is cleared.
 \end{itemize}
 
-\subsection{\code{shr}}
+\subsection{\code{shr, shrd}}
 
 \begin{itemize}
-\item Syntax: \code{shr rd, ra, rb}
-\item Operation: logical right shift, \ensuremath{rd \assign ra >> (rb \bitand 31)}
+\item Syntax: \code{shr \$rd, \$ra, \$rb | shrd \#rd, \#ra, \$rb}
+\item Operation: logical right shift, \code{rd~\assign~ra~>{}>~rb}
 \item Vacated high bits are filled with zero.
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ receives the last bit shifted out, if the shift count is non-zero.
-\item \flagV\ is cleared.
-\item \flagE\ is cleared.
 \end{itemize}
 
-\subsection{\code{shri}}
+\subsection{\code{shri, shrdi}}
 
 \begin{itemize}
-\item Syntax: \code{shri rd, ra, imm}
-\item Operation: logical right shift, \ensuremath{rd \assign ra >> (imm \bitand 31)}
+\item Syntax: \code{shri \$rd, \$ra, imm14 | shrdi \#rd, \#ra, imm14}
+\item Operation: logical right shift, \code{rd~\assign~ra~>{}>~imm14}
 \item Vacated high bits are filled with zero.
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ receives the last bit shifted out, if the shift count is non-zero.
-\item \flagV\ is cleared.
-\item \flagE\ is cleared.
 \end{itemize}
 
-\subsection{\code{sar}}
+\subsection{\code{sar, sard}}
 
 \begin{itemize}
-\item Syntax: \code{sar rd, ra, rb}
-\item Operation: arithmetic right shift, \ensuremath{rd \assign ra >> (rb \bitand 31)}
+\item Syntax: \code{sar \$rd, \$ra, \$rb | sard \#rd, \#ra, \$rb}
+\item Operation: arithmetic right shift, \code{rd~\assign~ra~>{}>~rb}
 \item Vacated high bits are filled with the original sign bit of (ra).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ receives the last bit shifted out, if the shift count is non-zero.
-\item \flagV\ is cleared.
-\item \flagE\ is cleared.
 \end{itemize}
 
-\subsection{\code{sari}}
+\subsection{\code{sari, sardi}}
 
 \begin{itemize}
-\item Syntax: \code{sari rd, ra, imm}
-\item Operation: arithmetic right shift, \ensuremath{rd \assign ra >> (imm \bitand 31)}
+\item Syntax: \code{sari \$rd, \$ra, imm14 | sardi \#rd, \#ra, imm14}
+\item Operation: arithmetic right shift, \code{rd~\assign~ra~>{}>~imm14}
 \item Vacated high bits are filled with the original sign bit of (ra).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC\ receives the last bit shifted out, if the shift count is non-zero.
-\item \flagV\ is cleared.
-\item \flagE\ is cleared.
 \end{itemize}
 
 \section{Bit Manipulation Instructions}
 
-\subsection{\code{btst}}
+For a successful bit-manipulation operation:
 
 \begin{itemize}
-\item Syntax: \code{btst ra, imm5}
-\item Operation: test bit \(imm5\) of \(ra\).
-\item No general-purpose register is modified.
-\item \flagZ\ is cleared if the selected bit is 1.
-\item \flagZ\ is set if the selected bit is 0.
-\item \flagN, \flagC, \flagV, and \flagE\ are cleared.
+\item N is set from the most-significant bit of the result: bit 31 for a
+      general-purpose register and bit 63 for a floating-point register.
+\item Z is set if the resulting register value is zero.
+\item C, V, E, I, U, and X are cleared.
 \end{itemize}
 
-\subsection{\code{bset}}
+If the selected bit index is outside the valid range of the target register:
 
 \begin{itemize}
-\item Syntax: \code{bset rd, ra, imm5}
-\item Operation: set bit \(imm5\) of \(ra\), then write the result to \(rd\).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item E is set.
+\item N, Z, C, V, I, U, and X are cleared.
+\item The destination register is left unchanged.
 \end{itemize}
 
-\subsection{\code{bclr}}
+\subsection{\code{bset, bsetd}}
 
 \begin{itemize}
-\item Syntax: \code{bclr rd, ra, imm5}
-\item Operation: clear bit \(imm5\) of \(ra\), then write the result to \(rd\).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item Syntax: \code{bset \$rd, \$ra, imm14 | bsetd \#rd, \#ra, imm14}
+\item Operation: sets \code{ra.imm14}, then writes the result to \code{rd}.
 \end{itemize}
 
-\subsection{\code{btgl}}
+\subsection{\code{bclr, bclrd}}
 
 \begin{itemize}
-\item Syntax: \code{btgl rd, ra, imm5}
-\item Operation: toggle bit \(imm5\) of \(ra\), then write the result to \(rd\).
-\item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-\item \flagC, \flagV, and \flagE\ are cleared.
+\item Syntax: \code{bclr \$rd, \$ra, imm14 | bclrd \#rd, \#ra, imm14}
+\item Operation: clears \code{ra.imm14}, then writes the result to \code{rd}.
+\end{itemize}
+
+\subsection{\code{btgl, btgld}}
+
+\begin{itemize}
+\item Syntax: \code{btgl \$rd, \$ra, imm14 | btgld \#rd, \#ra, imm14}
+\item Operation: toggles bit \code{ra.imm14} of \code{ra}, then writes the
+      result to \code{rd}.
 \end{itemize}
 
 \section{Multiply and Divide Instructions}
 
+Multiply and divide instructions on general purpose registers utilise two
+target registers, to hold upper and lower result and quotient and remainder
+respectively. Multiply and divide instructions on floating-point registers
+only require a single target register.
+
 \subsection{\code{mul}}
 
 \begin{itemize}
-  \item Syntax: \code{mul rdlo, rdhi, ra, rb}
-  \item Operation: signed 32-bit multiply.
-  \item The operands \(ra\) and \(rb\) are interpreted as signed 32-bit two's complement integers.
+  \item Syntax: \code{mul \$rd0, \$rd1, \$ra, \$rb}
+  \item Operation: signed 32-bit multiply, \code{rd1:rd0~\assign~ra~$\times$~rb}
+  \item The operands \code{ra} and \code{rb} are interpreted as signed 32-bit
+        two's complement integers.
   \item The full signed 64-bit product is computed.
-  \item The low 32 bits of the product are written to \(rdlo\).
-  \item The high 32 bits of the product are written to \(rdhi\).
-  \item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-  \item \flagN\ is set from bit 31 of \(rdhi\).
+  \item The low 32 bits of the product are written to \code{rd0}.
+  \item The high 32 bits of the product are written to \code{rd1}.
+  \item On successful multiplication:
+  \begin{itemize}
+  \item \flagN\ is set from bit 31 of \code{rd1}.
   \item \flagZ\ is set if the full 64-bit product is zero.
-  \item \flagC\ is cleared.
-  \item \flagV\ is cleared.
-  \item \flagE\ is cleared.
+  \item Flags \flagC, \flagV\ and \flagE\ are cleared.
+  \end{itemize}
+\end{itemize}
+
+\subsection{\code{muld}}
+
+\begin{itemize}
+\item Syntax: \code{muld \#rd, \#ra, \#rb}
+\item Operation: IEEE-754 binary64 multiplication,
+      \code{rd~\assign~ra~$\times$~rb}.
+\item Updates flags:
+      \begin{itemize}
+      \item \flagN\ is set when the numeric result is negative.
+            \code{+0.0} and \code{-0.0} do not set \flagN.
+      \item \flagZ\ is set if the result is \code{+0.0} or \code{-0.0}.
+      \item \flagC\ and \flagV\ are cleared.
+      \item \flagI\ is set if the result is positive or negative \code{infinity}.
+      \item \flagU\ is set if the result underflows binary64 representation.
+      \item \flagX\ is set if the exact mathematical result cannot be represented
+            exactly in binary64 and rounding is required.
+      \item \flagE\ is set if the operation produces an invalid floating-point
+          result, including \code{NaN}; otherwise it is cleared.
+      \end{itemize}
 \end{itemize}
 
 \subsection{\code{mulu}}
 
 \begin{itemize}
-  \item Syntax: \code{mulu rdlo, rdhi, ra, rb}
-  \item Operation: unsigned 32-bit multiply.
-  \item The operands \(ra\) and \(rb\) are interpreted as unsigned 32-bit integers.
+  \item Syntax: \code{mulu \$rd0, \$rd1, \$ra, \$rb}
+  \item Operation: unsigned 32-bit multiply,
+        \code{rd1:rd0~\assign~ra~$\times$~rb}
+  \item The operands \code{ra} and \code{rb} are interpreted as unsigned 32-bit
+        integers.
   \item The full unsigned 64-bit product is computed.
-  \item The low 32 bits of the product are written to \(rdlo\).
-  \item The high 32 bits of the product are written to \(rdhi\).
-  \item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-  \item \flagN\ is set from bit 31 of \(rdhi\).
+  \item The low 32 bits of the product are written to \code{rd0}.
+  \item The high 32 bits of the product are written to \code{rd1}.
+  \item On successful multiplication:
+  \begin{itemize}
+  \item \flagN\ is set from bit 31 of \code{rd1}.
   \item \flagZ\ is set if the full 64-bit product is zero.
-  \item \flagC\ is cleared.
-  \item \flagV\ is cleared.
-  \item \flagE\ is cleared.
+  \item Flags \flagC\ \flagV\ and \flagE\ are cleared.
+  \end{itemize}
 \end{itemize}
 
 \subsection{\code{div}}
 
 \begin{itemize}
-  \item Syntax: \code{div rdq, rdr, ra, rb}
-  \item Operation: signed 32-bit division.
-  \item The operands \(ra\) and \(rb\) are interpreted as signed 32-bit two's complement integers.
-  \item If \(rb\) is non-zero, the signed quotient is written to \(rdq\).
-  \item If \(rb\) is non-zero, the signed remainder is written to \(rdr\).
-  \item If \(rb\) is zero, \flagE\ is set.
-  \item If \(rb\) is zero, \(rdq\) and \(rdr\) are left unchanged.
-  \item Divide-by-zero does not trap in VIV-32 v0.1.
-  \item If \(ra\) is \code{0x80000000} and \(rb\) is \code{0xFFFFFFFF}, signed division overflows.
-  \item On signed division overflow, \flagE\ is set.
-  \item On signed division overflow, \(rdq\) and \(rdr\) are left unchanged.
-  \item Signed division overflow does not trap in VIV-32 v0.1.
-  \item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-  \item On successful division, \flagN\ is set from bit 31 of the quotient.
-  \item On successful division, \flagZ\ is set if the quotient is zero.
-  \item On successful division, \flagC\ is cleared.
-  \item On successful division, \flagV\ is cleared.
-  \item On successful division, \flagE\ is cleared.
+\item Syntax: \code{div \$rd0, \$rd1, \$ra, \$rb}
+\item Operation: signed 32-bit division.
+\item The operands \code{ra} and \code{rb} are interpreted as signed 32-bit
+two's-complement integers.
+\item On successful division, the signed quotient is written to \code{rd0}
+and the signed remainder is written to \code{rd1}.
+
+\item If \code{rb} is zero, division cannot be performed:
+\begin{itemize}
+\item \flagE\ is set.
+\item \flagN, \flagZ, \flagC, and \flagV\ are cleared.
+\item \code{rd0} and \code{rd1} are left unchanged.
+\end{itemize}
+
+\item If \code{ra} is \code{0x80000000} and \code{rb} is
+\code{0xFFFFFFFF}, the mathematical quotient cannot be represented as
+a signed 32-bit integer:
+\begin{itemize}
+\item \flagV\ and \flagE\ are set.
+\item \flagN, \flagZ, and \flagC\ are cleared.
+\item \code{rd0} and \code{rd1} are left unchanged.
+\end{itemize}
+
+\item Division errors do not trap in VIV-32 v\version{}.
+
+\item On successful division:
+\begin{itemize}
+\item \flagN\ is set if the quotient is negative.
+\item \flagZ\ is set if the quotient is zero.
+\item \flagC\ is set if the remainder is non-zero.
+\item \flagV\ and \flagE\ are cleared.
+\end{itemize}
+
+\item As an integer operation, \flagI, \flagU, and \flagX\ are cleared.
+\end{itemize}
+
+\subsection{\code{divd}}
+
+\begin{itemize}
+\item Syntax: \code{divd \#rd, \#ra, \#rb}
+\item Operation: IEEE-754 binary64 division,
+      \code{rd~\assign~ra~/~rb}.
+\item Updates flags:
+      \begin{itemize}
+      \item \flagN\ is set when the numeric result is negative.
+            \code{+0.0} and \code{-0.0} do not set \flagN.
+      \item \flagZ\ is set if the result is \code{+0.0} or \code{-0.0}.
+      \item \flagC\ and \flagV\ are cleared.
+      \item \flagI\ is set if the result is positive or negative \code{infinity}.
+      \item \flagU\ is set if the result underflows binary64 representation.
+      \item \flagX\ is set if the exact mathematical result cannot be represented
+            exactly in binary64 and rounding is required.
+      \item \flagE\ is set if the operation encounters an invalid or exceptional
+            arithmetic condition, including division by zero or production of
+            \code{NaN}; otherwise it is cleared.
+      \end{itemize}
 \end{itemize}
 
 \subsection{\code{divu}}
 
 \begin{itemize}
-  \item Syntax: \code{divu rdq, rdr, ra, rb}
-  \item Operation: unsigned 32-bit division.
-  \item The operands \(ra\) and \(rb\) are interpreted as unsigned 32-bit integers.
-  \item If \(rb\) is non-zero, the unsigned quotient is written to \(rdq\).
-  \item If \(rb\) is non-zero, the unsigned remainder is written to \(rdr\).
-  \item If \(rb\) is zero, \flagE\ is set.
-  \item If \(rb\) is zero, \(rdq\) and \(rdr\) are left unchanged.
-  \item Divide-by-zero does not trap in VIV-32 v0.1.
-  \item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-  \item On successful division, \flagN\ is set from bit 31 of the quotient.
-  \item On successful division, \flagZ\ is set if the quotient is zero.
-  \item On successful division, \flagC\ is cleared.
-  \item On successful division, \flagV\ is cleared.
-  \item On successful division, \flagE\ is cleared.
+\item Syntax: \code{divu \$rd0, \$rd1, \$ra, \$rb}
+\item Operation: unsigned 32-bit division.
+\item The operands \code{ra} and \code{rb} are interpreted as unsigned
+      32-bit integers.
+\item On successful division, the unsigned quotient is written to
+      \code{rd0} and the unsigned remainder is written to \code{rd1}.
+\item If \code{rb} is zero, division cannot be performed:
+      \begin{itemize}
+      \item \flagE\ is set.
+      \item \flagN, \flagZ, \flagC, and \flagV\ are cleared.
+      \item \code{rd0} and \code{rd1} are left unchanged.
+      \end{itemize}
+\item Divide-by-zero does not trap in VIV-32 v\version{}.
+\item On successful division:
+      \begin{itemize}
+      \item \flagN\ is set from bit 31 of the quotient.
+      \item \flagZ\ is set if the quotient is zero.
+      \item \flagC\ is set if the remainder is non-zero.
+      \item \flagV\ and \flagE\ are cleared.
+      \end{itemize}
+\item As an integer operation, \flagI, \flagU, and \flagX\ are cleared.
 \end{itemize}
 
 \section{Load and Store Instructions}
 
-Load and store instructions transfer data between general-purpose registers and memory. VIV-32 uses base-plus-offset addressing for ordinary memory access.
+Load and store instructions transfer data between registers and
+memory. VIV-32 uses base-plus-offset addressing for ordinary memory access.
+Multi-byte load and store operations are big-endian.
 
 \subsection{Address Calculation}
 \label{sec:load-store-address-calculation}
 
-Load and store instructions use base-plus-offset addressing. The assembly syntax writes the address operand as:
+The assembly syntax for memory addressing is:
 
 \begin{center}
-\code{offset(base)}
+\code{reg, [\$base, offset15]}
 \end{center}
 
 \noindent
-In this syntax, \code{base} is a general-purpose register containing a 32-bit base address, and \code{offset} is the assembly-level representation of the encoded M-type \code{offset15} field.
-
-\begin{itemize}
-  \item The encoded offset field is the M-type \code{offset15} field.
-  \item \code{offset15} is a signed 15-bit byte offset.
-  \item The offset is sign-extended to 32 bits before address calculation.
-  \item The effective address is a 32-bit byte address.
-\end{itemize}
+In this syntax, \code{base} is a general-purpose register containing a 32-bit
+base address, and \code{offset15} is sign-extended to 32-bits. \code{reg} may
+be either a general purpose or floating-point register, depending on the
+encoded instruction.
 
 \noindent
 The effective address is computed as:
 
 \begin{center}
-\ensuremath{addr \assign base + \sext{offset15}}
+\code{address~\assign~[base~+~SEXT(offset15)]}
 \end{center}
 
 \noindent
-The computed address is interpreted according to the access size of the instruction. Byte accesses may occur at any address. Halfword and word accesses are subject to the alignment rules defined below.
+The computed address is interpreted according to the access size of the
+instruction. Byte accesses may occur at any address. Halfword, word and
+double-half accesses are subject to the alignment rules defined below.
 
 \subsection{Alignment}
 
 \begin{itemize}
 \item Byte loads and stores may access any address.
 \item Halfword loads and stores must access a 2-byte aligned address.
-\item Word loads and stores must access a 4-byte aligned address.
-\item Misaligned halfword and word accesses raise a misaligned access exception.
-\item On a misaligned access exception, \code{epc} receives the address of the faulting instruction.
-\item On a misaligned access exception, \code{ecause} receives the misaligned access exception code.
-\item On a misaligned access exception, \code{eaddr} receives the misaligned effective address.
-\item The exception entry sequence is defined in the exceptions and interrupts chapter.
+\item Word and double-half loads and stores must access a 4-byte aligned
+      address.
+\item Misaligned halfword, word and double-half accesses raise a
+      \code{MisalignedAccessException}:
+      \begin{itemize}
+      \item \code{\%ecause} receives the \code{MisalignedAccessException}.
+      \item The exception entry sequence is defined in the exceptions and
+            interrupts chapter.
+      \end{itemize}
 \end{itemize}
 
 \subsection{Flag Behaviour}
 
 \begin{itemize}
-\item Load instructions do not update condition flags.
+\item Load instructions update condition flags according to the resulting
+destination-register value.
+
+\item Integer loads update the integer result flags:
+\begin{itemize}
+\item \flagN\ reflects the sign of the loaded 32-bit result.
+\item \flagZ\ is set when the loaded result is zero.
+\item \flagC, \flagV, \flagE, \flagI, \flagU, and \flagX\ are cleared.
+\end{itemize}
+
+\item Floating-point loads update the floating-point result flags:
+\begin{itemize}
+\item \flagN\ is set when the resulting floating-point value is negative.
+\item \flagZ\ is set when the result is \code{+0.0} or \code{-0.0}.
+\item \flagI\ is set when the resulting value is positive or negative
+infinity.
+\item \flagU, \flagX, and \flagE\ are updated according to any conversion
+performed by the load.
+\item \flagC\ and \flagV\ are cleared.
+\end{itemize}
+
+\item The binary64 half-load instructions \code{ldl} and \code{ldu} update the
+flags from the complete 64-bit contents of the destination floating-point
+register after the selected half has been written.
+
+\item When a binary64 value is assembled using two half-loads, the flag state
+produced by the first half-load is generally not meaningful. The flags
+describe the complete loaded value only after both halves have been
+loaded.
+
 \item Store instructions do not update condition flags.
 \end{itemize}
 
 \subsection{\code{lb}}
 
 \begin{itemize}
-\item Syntax: \code{lb rd, offset(base)}
+\item Syntax: \code{lb \$rd, [\$base, offset]}
 \item Operation: load signed byte.
-\item The effective address is computed as described in Section~\ref{sec:load-store-address-calculation}.
-\item One byte is loaded from memory.
-\item The loaded byte is sign-extended to 32 bits.
-\item The sign-extended value is written to (rd).
-\item No condition flags are updated.
+\item One byte is read from memory, sign-extended to 32 bits, then put in
+      general purpose register \code{\$rd}.
 \end{itemize}
 
 \subsection{\code{lbu}}
 
 \begin{itemize}
-\item Syntax: \code{lbu rd, offset(base)}
+\item Syntax: \code{lbu \$rd, [\$base, offset]}
 \item Operation: load unsigned byte.
-\item The effective address is computed as described in Section~\ref{sec:load-store-address-calculation}.
-\item One byte is loaded from memory.
-\item The loaded byte is zero-extended to 32 bits.
-\item The zero-extended value is written to (rd).
-\item No condition flags are updated.
+\item One byte is read from memory, zero-extended to 32 bits, then put in
+      general purpose register \code{\$rd}.
 \end{itemize}
 
 \subsection{\code{lh}}
 
 \begin{itemize}
-\item Syntax: \code{lh rd, offset(base)}
+\item Syntax: \code{lh \$rd, [\$base, offset]}
 \item Operation: load signed halfword.
-\item The effective address is computed as described in Section~\ref{sec:load-store-address-calculation}.
-\item The effective address must be 2-byte aligned.
-\item If the effective address is misaligned, a misaligned access exception is raised.
-\item Two bytes are loaded from memory using big-endian byte order.
-\item The loaded halfword is sign-extended to 32 bits.
-\item The sign-extended value is written to (rd).
-\item No condition flags are updated.
+\item Two bytes are read from memory, sign-extended to 32-bits, then put in
+      general purpose register \code{\$rd}.
 \end{itemize}
 
 \subsection{\code{lhu}}
 
 \begin{itemize}
-\item Syntax: \code{lhu rd, offset(base)}
+\item Syntax: \code{lhu \$rd, [\$base, offset]}
 \item Operation: load unsigned halfword.
-\item The effective address is computed as described in Section~\ref{sec:load-store-address-calculation}.
-\item The effective address must be 2-byte aligned.
-\item If the effective address is misaligned, a misaligned access exception is raised.
-\item Two bytes are loaded from memory using big-endian byte order.
-\item The loaded halfword is zero-extended to 32 bits.
-\item The zero-extended value is written to (rd).
-\item No condition flags are updated.
+\item Two bytes are read from memory, zero-extended to 32-bits, then put in
+      general purpose register \code{\$rd}.
 \end{itemize}
 
 \subsection{\code{lw}}
 
 \begin{itemize}
-\item Syntax: \code{lw rd, offset(base)}
+\item Syntax: \code{lw \$rd, [\$base, offset]}
 \item Operation: load word.
-\item The effective address is computed as described in Section~\ref{sec:load-store-address-calculation}.
-\item The effective address must be 4-byte aligned.
-\item If the effective address is misaligned, a misaligned access exception is raised.
-\item Four bytes are loaded from memory using big-endian byte order.
-\item The loaded 32-bit word is written to (rd).
-\item No condition flags are updated.
+\item Four bytes are read from memory, then put in general purpose register
+      \code{\$rd}.
+\end{itemize}
+
+\subsection{\code{ld}}
+
+\begin{itemize}
+\item Syntax: \code{ld \#rd, [\$base, offset]}
+\item Operation: loads float.
+\item Four bytes are read from memory, interpeted as an IEEE 754 binary32 type,
+      extended to binary64, then placed in floating-point register  \code{\#rd}.
+\end{itemize}
+
+\subsection{\code{ldl}}
+
+\begin{itemize}
+\item Syntax: \code{ldl \#rd, [\$base, offset]}
+\item Operation: load lower double-half.
+\item Four bytes are read from memory, then put in the lower 32-bits of
+      floating-point register \code{\#rd}. This operation is raw, leaving the
+      upper bits untouched.
+\item Condition flags are updated for \code{\#rd} as a whole.
+\end{itemize}
+
+\subsection{\code{ldu}}
+
+\begin{itemize}
+\item Syntax: \code{ldu \#rd, [\$base, offset]}
+\item Operation: load upper double-half.
+\item Four bytes are read from memory, then put in the upper 32-bits of
+      floating-point register \code{\#rd}. This operation is raw, leaving the
+      lower bits untouched.
+\item Condition flags are updated for \code{\#rd} as a whole.
 \end{itemize}
 
 \subsection{\code{sb}}
 
 \begin{itemize}
-\item Syntax: \code{sb rs, offset(base)}
+\item Syntax: \code{sb \$rs, [\$base, offset]}
 \item Operation: store byte.
-\item The effective address is computed as described in Section~\ref{sec:load-store-address-calculation}.
-\item The low 8 bits of (rs) are stored to memory.
-\item Byte stores may access any address.
-\item No condition flags are updated.
+\item The low 8 bits of \code{\$rs} are written to the calculated memory
+      address.
 \end{itemize}
 
 \subsection{\code{sh}}
 
 \begin{itemize}
-\item Syntax: \code{sh rs, offset(base)}
+\item Syntax: \code{sh \$rs, [\$base, offset]}
 \item Operation: store halfword.
-\item The effective address is computed as described in Section~\ref{sec:load-store-address-calculation}.
-\item The effective address must be 2-byte aligned.
-\item If the effective address is misaligned, a misaligned access exception is raised.
-\item The low 16 bits of (rs) are stored to memory using big-endian byte order.
-\item No condition flags are updated.
+\item The low 16 bits of \code{\$rs} are written to the calculated memory
+      address memory using big-endian byte order.
 \end{itemize}
 
 \subsection{\code{sw}}
 
 \begin{itemize}
-\item Syntax: \code{sw rs, offset(base)}
+\item Syntax: \code{sw \$rs, [\$base, offset]}
 \item Operation: store word.
-\item The effective address is computed as described in Section~\ref{sec:load-store-address-calculation}.
-\item The effective address must be 4-byte aligned.
-\item If the effective address is misaligned, a misaligned access exception is raised.
-\item The full 32-bit value in (rs) is stored to memory using big-endian byte order.
-\item No condition flags are updated.
+\item The full 32-bit value in \code{\$rs} is written to the calculated memory
+      address using big-endian byte order.
+\end{itemize}
+
+\subsection{\code{sd}}
+
+\begin{itemize}
+\item Syntax: \code{sd \#rs, [\$base, offset]}
+\item Operation: store an IEEE-754 binary32 floating-point value.
+\item The binary64 value held in floating-point register \code{\#rs} is
+      converted to IEEE-754 binary32 and the resulting 32-bit representation
+      is written to the calculated memory address using big-endian byte order.
+\item The conversion performed by \code{sd} is blind: \code{sd} does not
+      report whether precision or range was lost during conversion and does not
+      update condition flags.
+\item Software that requires assurance that the binary64 source can be
+      represented appropriately as binary32 should execute \code{disf} before
+      performing the store.
+\end{itemize}
+
+\subsection{\code{sdl}}
+
+\begin{itemize}
+\item Syntax: \code{sdl \#rs, [\$base, offset]}
+\item Operation: store lower binary64.
+\item The lower 32-bit value from floating-point register \code{\#rs} is written
+      to the calculated memory address using big-endian byte order.
+\end{itemize}
+
+\subsection{\code{sdu}}
+
+\begin{itemize}
+\item Syntax: \code{sdu \#rs, [\$base, offset]}
+\item Operation: store upper binary64.
+\item The upper 32-bit value from floating-point register \code{\#rs} is written
+      to the calculated memory address using big-endian byte order.
 \end{itemize}
 
 \section{Constant Construction Instructions}
 
-VIV-32 instructions are fixed-width 32-bit words. A single instruction cannot encode every possible 32-bit constant together with an opcode and register fields. Larger constants and addresses are therefore constructed using one or more instructions.
+VIV-32 instructions are fixed-width 32-bit words. A single instruction cannot
+encode every possible 32-bit constant together with an opcode and register
+fields. Larger constants and addresses are therefore constructed using one or
+more instructions.
+
+Constants construction instructions set the conditions register \code{\%sr} as
+per normal.
 
 \subsection{\code{lui}}
 
 \begin{itemize}
-  \item Syntax: \code{lui rd, imm16}
-  \item Operation: load upper immediate.
-  \item The 16-bit immediate is placed in bits 31--16 of the result.
-  \item Bits 15--0 of the result are cleared.
-  \item Operation: \ensuremath{rd \assign imm16 \shleft 16}
-  \item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-  \item \flagC, \flagV, and \flagE\ are cleared.
+  \item Syntax: \code{lui \$rd, imm16}
+  \item Operation: load upper immediate, \code{rd~\assign~imm16~<{}<~16}
+  \item The 16-bit immediate is placed in bits 31--16 of \code{\$rd}, with bits
+        15--0 of the result set to zero.
 \end{itemize}
 
 \subsection{\code{lli}}
 
 \begin{itemize}
-  \item Syntax: \code{lli rd, imm16}
-  \item Operation: load lower immediate.
-  \item The 16-bit immediate is zero-extended and written to \(rd\).
-  \item Operation: \ensuremath{rd \assign \zext{imm16}}
-  \item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-  \item \flagC, \flagV, and \flagE\ are cleared.
+  \item Syntax: \code{lli \$rd, imm16}
+  \item Operation: load lower immediate, \code{rd~\assign~imm16~\&~0xFFFF}
+  \item The 16-bit immediate is zero-extended and written to \code{\$rd}.
 \end{itemize}
 
 \subsection{\code{lhi}}
 
 \begin{itemize}
-  \item Syntax: \code{lhi rd, imm16}
-  \item Operation: load upper immediate, preserve lower bytes.
-  \item The 16-bit immediate is written to \code{rd} bits 31--16.
-  \item Operation: \ensuremath{rd \assign (\zext{imm16} << 16) OR (rd AND 0xFFFF)}
-  \item Updates flags: \flagN, \flagZ, \flagC, \flagV, \flagE.
-  \item \flagC, \flagV, and \flagE\ are cleared.
+  \item Syntax: \code{lhi \$rd, imm16}
+  \item Operation: load upper immediate, preserving lower bytes,
+
+        \code{\$rd~\assign~(\$rd~\&~0xFFFF)~|~(imm16~<{}<~16)}
 \end{itemize}
 
-\subsection{\code{lli} and \code{lhi} for Constant Construction}
+\subsection{Full-Width Constants, \code{li} and \code{la}}
 
-The \code{lhi} instruction may be used after \code{lli} to construct a full 32-bit constant.
+The assembler provides pseudo instructions \code{li} and \code{la} to load
+32-bit values and addresses respectively.
 
-\subsection{Full-Width Constants}
+\section{Inter-File Transfer Instructions}
+
+\subsection{Floating-Point Rounding}
+
+VIV-32 v0.2 does not provide a programmable floating-point rounding-mode
+control register.
+
+Unless explicitly specified otherwise by an instruction, floating-point
+arithmetic and floating-point conversions use IEEE-754 round-to-nearest,
+ties-to-even.
+
+This rounding mode applies to operations including:
 
 \begin{itemize}
-  \item The assembler should provide a pseudo-instruction for loading full-width constants.
-  \item Recommended pseudo-instruction syntax: \code{li rd, imm32}
-  \item The \code{li} pseudo-instruction expands to one or more real instructions.
-  \item The exact expansion is defined by the assembler and relocation model.
+\item IEEE-754 binary64 arithmetic;
+\item binary64-to-binary32 conversion;
+\item integer-to-binary64 conversion where rounding is required;
+\item binary64-to-integer conversion.
 \end{itemize}
 
-\subsection{Address Constants}
+Where a conversion or arithmetic operation cannot represent the exact
+mathematical result in its destination format, \flagX\ is set when rounding
+is required, subject to the instruction-specific flag rules.
+
+\subsection{\code{disf}}
 
 \begin{itemize}
-  \item The assembler should provide a pseudo-instruction for loading symbol addresses.
-  \item Recommended pseudo-instruction syntax: \code{la rd, symbol}
-  \item The \code{la} pseudo-instruction expands to relocation-aware constant construction instructions.
-  \item The exact expansion is defined by the assembler, linker, and relocation model.
+\item Syntax: \code{disf \#ra}
+\item Operation: tests the result of converting the IEEE-754 binary64 value
+      in \code{\#ra} to IEEE-754 binary32 without storing the converted value.
+\item The source floating-point register is not modified.
+\item The condition flags describe the binary32 conversion that would be
+      performed by \code{dtof} or \code{sd}:
+      \begin{itemize}
+      \item \flagN\ is set if the converted value is numerically negative.
+      \item \flagZ\ is set if the converted value is \code{+0.0} or \code{-0.0}.
+      \item \flagI\ is set if the converted value is positive or negative
+            \code{infinity}.
+      \item \flagU\ is set if conversion enters the binary32 underflow range.
+      \item \flagX\ is set if conversion to binary32 requires rounding or
+            otherwise loses precision.
+      \item \flagE\ is set only if the conversion is invalid.
+      \item \flagC\ and \flagV\ are cleared.
+      \end{itemize}
+\item IEEE-754 \code{NaN} values are considered representable binary32
+      values and may therefore be tested by \code{disf}; the presence of a
+      \code{NaN} does not by itself make the conversion invalid.
+\item No converted value is written to a register.
+\end{itemize}
+
+\subsection{\code{utod}}
+
+\begin{itemize}
+  \item Syntax: \code{utod \#rd, \$rs}
+  \item Operation: \code{\#rd~\assign~FLOAT(\$rs)}
+  \item Loads numerical value of unsigned general-purpose register
+        \code{\$rs} into floating-point register \code{\#rd} as binary64,
+        maintaining numerical value.
+\end{itemize}
+
+\subsection{\code{itod}}
+
+\begin{itemize}
+  \item Syntax: \code{itod \#rd, \$rs}
+  \item Operation: \code{\#rd~\assign~FLOAT(\$rs)}
+  \item Loads numerical value of signed general-purpose register
+        \code{\$rs} into floating-point register \code{\#rd} as binary64,
+        maintaining numerical value.
+\end{itemize}
+
+\subsection{\code{ftod}}
+
+\begin{itemize}
+  \item Syntax: \code{ftod \#rd, \$rs}
+  \item Operation: \code{\#rd~\assign~BINARY64(\$rs)}
+  \item Loads binary32 value of general-purpose register
+        \code{\$rs} into floating-point register \code{\#rd} as binary64.
+\end{itemize}
+
+\subsection{\code{dtou}}
+
+\begin{itemize}
+\item Syntax: \code{dtou \$rd, \#rs}
+\item Operation: \code{\$rd~\assign~UNSIGNED(\#rs)}
+\item Converts the IEEE-754 binary64 numerical value in \code{\#rs} to an
+      unsigned 32-bit integer using the architectural rounding mode.
+\item On successful conversion:
+      \begin{itemize}
+      \item The converted value is written to \code{\$rd}.
+      \item \flagN\ is set from bit 31 of the resulting integer.
+      \item \flagZ\ is set if the resulting integer is zero.
+      \item \flagC, \flagV, and \flagE\ are cleared.
+      \item \flagI\ and \flagU\ are cleared.
+      \item \flagX\ is set if rounding was required to produce the integer result;
+      otherwise it is cleared.
+      \end{itemize}
+\item If the source is \code{NaN}, positive or negative infinity, or cannot
+      be represented as an unsigned 32-bit integer after rounding:
+      \begin{itemize}
+      \item \flagE\ is set.
+      \item \flagN, \flagZ, \flagC, \flagV, \flagI, \flagU, and \flagX\ are cleared.
+      \item \code{\$rd} is left unchanged.
+      \end{itemize}
+\end{itemize}
+
+\subsection{\code{dtoi}}
+
+\begin{itemize}
+\item Syntax: \code{dtoi \$rd, \#rs}
+\item Operation: \code{\$rd~\assign~SIGNED(\#rs)}
+\item Converts the IEEE-754 binary64 numerical value in \code{\#rs} to a
+      signed 32-bit two's-complement integer using the architectural
+      rounding mode.
+\item On successful conversion:
+      \begin{itemize}
+      \item The converted value is written to \code{\$rd}.
+      \item \flagN\ is set if the resulting integer is negative.
+      \item \flagZ\ is set if the resulting integer is zero.
+      \item \flagC, \flagV, and \flagE\ are cleared.
+      \item \flagI\ and \flagU\ are cleared.
+      \item \flagX\ is set if rounding was required to produce the integer result;
+      otherwise it is cleared.
+      \end{itemize}
+\item If the source is \code{NaN}, positive or negative infinity, or cannot
+be represented as a signed 32-bit integer after rounding:
+      \begin{itemize}
+      \item \flagE\ is set.
+      \item \flagN, \flagZ, \flagC, \flagV, \flagI, \flagU, and \flagX\ are cleared.
+      \item \code{\$rd} is left unchanged.
+      \end{itemize}
+\end{itemize}
+
+\subsection{\code{dtof}}
+
+\begin{itemize}
+\item Syntax: \code{dtof \$rd, \#rs}
+\item Operation: \code{\$rd~\assign~BINARY32(\#rs)}
+\item Converts the IEEE-754 binary64 value in \code{\#rs} to IEEE-754
+      binary32 using the architectural rounding mode and writes the resulting
+      32-bit representation to \code{\$rd}.
+\item The condition flags describe the resulting binary32 value:
+      \begin{itemize}
+      \item \flagN\ is set if the converted value is numerically negative.
+      \item \flagZ\ is set if the converted value is \code{+0.0} or \code{-0.0}.
+      \item \flagI\ is set if the converted value is positive or negative infinity.
+      \item \flagU\ is set if conversion enters the binary32 underflow range.
+      \item \flagX\ is set if conversion requires rounding or otherwise loses precision.
+      \item \flagE\ is set only if the conversion is invalid.
+      \item \flagC\ and \flagV\ are cleared.
+      \end{itemize}
+\item IEEE-754 \code{NaN} values are representable as binary32 values and do
+      not by themselves make the conversion invalid.
+\item If the conversion is invalid, \code{\$rd} is left unchanged.
 \end{itemize}
 
 \section{Branch Instructions}
 
-Branch instructions perform conditional PC-relative control transfer. VIV-32 defines two branch families:
+Branch instructions perform conditional PC-relative control transfer. VIV-32
+defines two branch families:
 
 \begin{itemize}
   \item register-comparison branches, which compare two registers directly;
-  \item flag-based branches, which test the existing condition flags in \SR.
+  \item flag-based branches, which test the existing condition flags in
+  \code{\%sr}.
 \end{itemize}
 
 \subsection{Branch Target Calculation}
@@ -696,297 +1116,312 @@ Branch instructions perform conditional PC-relative control transfer. VIV-32 def
   \item Branch offsets are signed PC-relative offsets.
   \item Branch offsets are measured in 32-bit instruction words.
   \item The encoded offset is shifted left by two bits to form a byte offset.
-  \item The branch target is relative to the address of the instruction following the branch.
+  \item The branch target is relative to the address of the instruction
+        following the branch.
   \item Branch targets must be 4-byte aligned.
   \item Branch instructions do not update condition flags.
 \end{itemize}
 
 \subsection{Register-Comparison Branches}
 
-Register-comparison branches compare \(ra\) and \(rb\) directly. They do not depend on the current condition flags.
+Register-comparison branches compare \code{ra} and \code{rb} directly. They do
+not depend on the current condition flags, and they do not update the condition
+flags. The jump target is calculated in instruction words:
 
-\subsection{\code{b.eq}}
+\code{target = \%pc + 4 + SEXT(imm14) <{}< 2}
 
+\noindent
+That is, the target is relative to the NEXT instruction, not the executed
+instruction.
 \begin{itemize}
-  \item Syntax: \code{b.eq ra, rb, label}
-  \item Operation: branch if \(ra = rb\).
-  \item Signedness: not applicable.
-  \item Flags: not updated.
+\item \code{imm14} can be a label or a value.
+\item Unsigned comparisons are only valid for general purpose registers.
+\item Floating-point comparisons use IEEE-754 binary64 numerical comparison semantics.
+\item If either floating-point operand is \code{NaN}, the comparison is unordered.
+For unordered comparisons, \code{bd.eq}, \code{bd.lt}, \code{bd.le},
+\code{bd.gt}, and \code{bd.ge} do not branch; \code{bd.ne} branches.
+\item Register-comparison branches do not modify the condition flags, including for
+unordered floating-point comparisons.
 \end{itemize}
 
-\subsection{\code{b.ne}}
+\subsection{\code{b.eq, bd.eq}}
 
 \begin{itemize}
-  \item Syntax: \code{b.ne ra, rb, label}
-  \item Operation: branch if \(ra \ne rb\).
-  \item Signedness: not applicable.
-  \item Flags: not updated.
+  \item Syntax: \code{b.eq \$ra, \$rb, imm14 | bd.eq \#ra, \#rb, imm14}
+  \item Operation: branch if \code{ra~=~rb}.
+  \item For general purpose registers, this is bitwise equivalence. For
+        floating-point register, this is numerical equivalence.
 \end{itemize}
 
-\subsection{\code{b.lt}}
+\subsection{\code{b.ne, bd.ne}}
 
 \begin{itemize}
-  \item Syntax: \code{b.lt ra, rb, label}
-  \item Operation: branch if \(ra < rb\), treating both operands as signed 32-bit two's complement integers.
-  \item Flags: not updated.
+  \item Syntax: \code{b.ne \$ra, \$rb, imm14 | bd.ne \#ra, \#rb, imm14}
+  \item Operation: branch if \code{ra~$\ne$~rb}.
+  \item For general purpose registers, this is bitwise inequivalence. For
+        floating-point register, this is numerical inequivalence.
 \end{itemize}
 
-\subsection{\code{b.le}}
+\subsection{\code{b.lt, bd.lt}}
 
 \begin{itemize}
-  \item Syntax: \code{b.le ra, rb, label}
-  \item Operation: branch if \(ra \le rb\), treating both operands as signed 32-bit two's complement integers.
-  \item Flags: not updated.
+  \item Syntax: \code{b.lt \$ra, \$rb, imm14 | bd.lt \#ra, \#rb, imm14}
+  \item Operation: branch if \code{ra~<~rb}, treating both operands as signed
+        numbers.
 \end{itemize}
 
-\subsection{\code{b.gt}}
+\subsection{\code{b.le, bd.le}}
 
 \begin{itemize}
-  \item Syntax: \code{b.gt ra, rb, label}
-  \item Operation: branch if \(ra > rb\), treating both operands as signed 32-bit two's complement integers.
-  \item Flags: not updated.
+  \item Syntax: \code{b.le \$ra, \$rb, imm14 | bd.le \#ra, \#rb, imm14}
+  \item Operation: branch if \code{ra~$\le$~rb}, treating both operands as signed
+        numbers.
 \end{itemize}
 
-\subsection{\code{b.ge}}
+\subsection{\code{b.gt, bd.gt}}
 
 \begin{itemize}
-  \item Syntax: \code{b.ge ra, rb, label}
-  \item Operation: branch if \(ra \ge rb\), treating both operands as signed 32-bit two's complement integers.
-  \item Flags: not updated.
+  \item Syntax: \code{b.gt \$ra, \$rb, imm14 | bd.gt \#ra, \#rb, imm14}
+  \item Operation: branch if \code{ra~>~rb}, treating both operands as signed
+        numbers.
+\end{itemize}
+
+\subsection{\code{b.ge, bd.ge}}
+
+\begin{itemize}
+  \item Syntax: \code{b.ge \$ra, \$rb, imm14 | bd.ge \#ra, \#rb, imm14}
+  \item Operation: branch if \code{ra~$\ge$~rb}, treating both operands as signed
+        numbers.
 \end{itemize}
 
 \subsection{\code{b.ltu}}
 
 \begin{itemize}
-  \item Syntax: \code{b.ltu ra, rb, label}
-  \item Operation: branch if \(ra < rb\), treating both operands as unsigned 32-bit integers.
-  \item Flags: not updated.
+  \item Syntax: \code{b.ltu \$ra, \$rb, imm14}
+  \item Operation: branch if \code{ra~<~rb}, treating both operands as unsigned
+        32-bit integers.
 \end{itemize}
 
 \subsection{\code{b.leu}}
 
 \begin{itemize}
-  \item Syntax: \code{b.leu ra, rb, label}
-  \item Operation: branch if \(ra \le rb\), treating both operands as unsigned 32-bit integers.
-  \item Flags: not updated.
+  \item Syntax: \code{b.leu \$ra, \$rb, imm14}
+  \item Operation: branch if \code{ra~$\le$~rb}, treating both operands as
+        unsigned 32-bit integers.
 \end{itemize}
 
 \subsection{\code{b.gtu}}
 
 \begin{itemize}
-  \item Syntax: \code{b.gtu ra, rb, label}
-  \item Operation: branch if \(ra > rb\), treating both operands as unsigned 32-bit integers.
-  \item Flags: not updated.
+  \item Syntax: \code{b.gtu \$ra, \$rb, imm14}
+  \item Operation: branch if \code{ra~>~rb}, treating both operands as
+        unsigned 32-bit integers.
 \end{itemize}
 
 \subsection{\code{b.geu}}
 
 \begin{itemize}
-  \item Syntax: \code{b.geu ra, rb, label}
-  \item Operation: branch if \(ra \ge rb\), treating both operands as unsigned 32-bit integers.
-  \item Flags: not updated.
+  \item Syntax: \code{b.geu \$ra, \$rb, imm14}
+  \item Operation: branch if \code{ra~$\ge$~rb}, treating both operands as
+        unsigned 32-bit integers.
 \end{itemize}
 
 \subsection{Flag-Based Branches}
 
-Flag-based branches test the current condition flags in \SR. They do not perform a new comparison.
+Flag-based branches test a single current condition flag in the status register
+\code{\%sr}. They do not perform a comparison, do not interpret the flags as
+signed, unsigned, or floating-point state, and do not update any flags.
 
-\subsection{\code{bf.eq}}
+The jump target is calculated in instruction words:
+
+\code{target = \%pc + 4 + SEXT(imm22) <{}< 2}
+
+\noindent
+That is, the target is relative to the instruction following the branch.
+\code{imm22} may be a label or a value.
+
+\subsection{\code{bf.ns}}
 
 \begin{itemize}
-  \item Syntax: \code{bf.eq label}
-  \item Operation: branch if \flagZ\ is set.
-  \item Common use: branch if the previous flag-setting result was zero.
-  \item Flags: not updated.
+\item Syntax: \code{bf.ns imm22}
+\item Operation: branch if \flagN\ is set.
 \end{itemize}
 
-\subsection{\code{bf.ne}}
+\subsection{\code{bf.nc}}
 
 \begin{itemize}
-  \item Syntax: \code{bf.ne label}
-  \item Operation: branch if \flagZ\ is clear.
-  \item Common use: branch if the previous flag-setting result was non-zero.
-  \item Flags: not updated.
+\item Syntax: \code{bf.nc imm22}
+\item Operation: branch if \flagN\ is clear.
+\end{itemize}
+
+\subsection{\code{bf.zs}}
+
+\begin{itemize}
+\item Syntax: \code{bf.zs imm22}
+\item Operation: branch if \flagZ\ is set.
+\end{itemize}
+
+\subsection{\code{bf.zc}}
+
+\begin{itemize}
+\item Syntax: \code{bf.zc imm22}
+\item Operation: branch if \flagZ\ is clear.
 \end{itemize}
 
 \subsection{\code{bf.cs}}
 
 \begin{itemize}
-  \item Syntax: \code{bf.cs label}
-  \item Operation: branch if \flagC\ is set.
-  \item Flags: not updated.
+\item Syntax: \code{bf.cs imm22}
+\item Operation: branch if \flagC\ is set.
 \end{itemize}
 
 \subsection{\code{bf.cc}}
 
 \begin{itemize}
-  \item Syntax: \code{bf.cc label}
-  \item Operation: branch if \flagC\ is clear.
-  \item Flags: not updated.
+\item Syntax: \code{bf.cc imm22}
+\item Operation: branch if \flagC\ is clear.
 \end{itemize}
 
 \subsection{\code{bf.vs}}
 
 \begin{itemize}
-  \item Syntax: \code{bf.vs label}
-  \item Operation: branch if \flagV\ is set.
-  \item Flags: not updated.
+\item Syntax: \code{bf.vs imm22}
+\item Operation: branch if \flagV\ is set.
 \end{itemize}
 
 \subsection{\code{bf.vc}}
 
 \begin{itemize}
-  \item Syntax: \code{bf.vc label}
-  \item Operation: branch if \flagV\ is clear.
-  \item Flags: not updated.
+\item Syntax: \code{bf.vc imm22}
+\item Operation: branch if \flagV\ is clear.
 \end{itemize}
 
 \subsection{\code{bf.es}}
 
 \begin{itemize}
-  \item Syntax: \code{bf.es label}
-  \item Operation: branch if \flagE\ is set.
-  \item Common use: branch after arithmetic operations that may set the arithmetic error flag.
-  \item Flags: not updated.
+\item Syntax: \code{bf.es imm22}
+\item Operation: branch if \flagE\ is set.
 \end{itemize}
 
 \subsection{\code{bf.ec}}
 
 \begin{itemize}
-  \item Syntax: \code{bf.ec label}
-  \item Operation: branch if \flagE\ is clear.
-  \item Flags: not updated.
+\item Syntax: \code{bf.ec imm22}
+\item Operation: branch if \flagE\ is clear.
 \end{itemize}
 
-\subsection{Signed Flag-Based Comparisons}
-
-After a \code{cmp} or \code{cmpi} instruction, signed comparison results may be tested using flag combinations.
-
-\begin{center}
-\begin{tabular}{lll}
-\hline
-Condition & Meaning & Flag test \\
-\hline
-\code{bf.lt} & signed less than & \ensuremath{\flagN \ne \flagV} \\
-\code{bf.le} & signed less than or equal & \ensuremath{\flagZ = 1} or \ensuremath{\flagN \ne \flagV} \\
-\code{bf.gt} & signed greater than & \ensuremath{\flagZ = 0} and \ensuremath{\flagN = \flagV} \\
-\code{bf.ge} & signed greater than or equal & \ensuremath{\flagN = \flagV} \\
-\hline
-\end{tabular}
-\end{center}
+\subsection{\code{bf.is}}
 
 \begin{itemize}
-  \item These mnemonics test the existing flags.
-  \item They are most commonly used after \code{cmp} or \code{cmpi}.
-  \item They do not perform a new comparison.
+\item Syntax: \code{bf.is imm22}
+\item Operation: branch if \flagI\ is set.
 \end{itemize}
 
-\subsection{Unsigned Flag-Based Comparisons}
-
-After a \code{cmp} or \code{cmpi} instruction, unsigned comparison results may be tested using carry and zero flags.
-
-\begin{center}
-\begin{tabular}{lll}
-\hline
-Condition & Meaning & Flag test \\
-\hline
-\code{bf.ltu} & unsigned less than & \ensuremath{\flagC = 0} \\
-\code{bf.leu} & unsigned less than or equal & \ensuremath{\flagC = 0} or \ensuremath{\flagZ = 1} \\
-\code{bf.gtu} & unsigned greater than & \ensuremath{\flagC = 1} and \ensuremath{\flagZ = 0} \\
-\code{bf.geu} & unsigned greater than or equal & \ensuremath{\flagC = 1} \\
-\hline
-\end{tabular}
-\end{center}
+\subsection{\code{bf.ic}}
 
 \begin{itemize}
-  \item These mnemonics test the existing flags.
-  \item They are most commonly used after \code{cmp} or \code{cmpi}.
-  \item They do not perform a new comparison.
+\item Syntax: \code{bf.ic imm22}
+\item Operation: branch if \flagI\ is clear.
+\end{itemize}
+
+\subsection{\code{bf.us}}
+
+\begin{itemize}
+\item Syntax: \code{bf.us imm22}
+\item Operation: branch if \flagU\ is set.
+\end{itemize}
+
+\subsection{\code{bf.uc}}
+
+\begin{itemize}
+\item Syntax: \code{bf.uc imm22}
+\item Operation: branch if \flagU\ is clear.
+\end{itemize}
+
+\subsection{\code{bf.xs}}
+
+\begin{itemize}
+\item Syntax: \code{bf.xs imm22}
+\item Operation: branch if \flagX\ is set.
+\end{itemize}
+
+\subsection{\code{bf.xc}}
+
+\begin{itemize}
+\item Syntax: \code{bf.xc imm22}
+\item Operation: branch if \flagX\ is clear.
 \end{itemize}
 
 \section{Jump and Call Instructions}
 
-Jump and call instructions perform unconditional control transfer. Unlike branch instructions, jump and call instructions do not test condition flags or compare registers.
+Jump and call instructions perform unconditional control transfer. Unlike branch
+instructions, jump and call instructions do not test condition flags or compare
+registers.
 
 \subsection{Jump Target Rules}
 
 \begin{itemize}
 \item Jump and call targets are 32-bit instruction addresses.
-\item Jump and call targets must be 4-byte aligned.
-\item Attempting to jump or call to a misaligned address raises a misaligned instruction fetch exception.
+\item The encoded offset is measured in 32-bit instruction words.
+\item The encoded offset is shifted left by two bits to form a byte offset.
+\item The target is relative to the address of the following instruction.
+\item Jump and call targets must be 4-byte aligned. This is ensured by the
+      calculation:
+
+      \code{\%pc~\assign~\%pc + 4 + SEXT(imm26) <{}< 2}
 \item Jump and call instructions do not update condition flags.
+\item \code{imm26} can be a value or label.
 \end{itemize}
 
 \subsection{\code{jmp}}
 
 \begin{itemize}
-\item Syntax: \code{jmp label}
-\item Operation: PC-relative unconditional jump.
-\item The encoded offset is measured in 32-bit instruction words.
-\item The encoded offset is shifted left by two bits to form a byte offset.
-\item The jump target is relative to the address of the instruction following the \code{jmp}.
-\item Operation: \ensuremath{\PC \assign \PC + 4 + (\sext{offset} \shleft 2)}
-\item No general-purpose register is modified.
-\item No condition flags are updated.
+\item Syntax: \code{jmp imm26}
+\item Operation: unconditional jump.
 \end{itemize}
 
 \subsection{\code{call}}
 
 \begin{itemize}
-\item Syntax: \code{call label}
-\item Operation: PC-relative call.
-\item The return address is the address of the instruction following the \code{call}.
-\item The return address is written to (r15), the architectural link register.
-\item The encoded offset is measured in 32-bit instruction words.
-\item The encoded offset is shifted left by two bits to form a byte offset.
-\item The call target is relative to the address of the instruction following the \code{call}.
-\item Operation: \ensuremath{r15 \assign \PC + 4}
-\item Operation: \ensuremath{\PC \assign \PC + 4 + (\sext{offset} \shleft 2)}
-\item No condition flags are updated.
+\item Syntax: \code{call imm26}
+\item Operation: unconditional jump with updated link register \code{\%lr}
+      (\code{\$15}). The return address is the address of the instruction
+      following the \code{call}.
+
+      \code{\$15~\assign~\%pc + 4}
 \end{itemize}
 
 \subsection{\code{jr}}
 
 \begin{itemize}
-\item Syntax: \code{jr target}
-\item Operation: register-indirect unconditional jump.
-\item The target register contains the destination address.
-\item The destination address must be 4-byte aligned.
-\item Operation: \ensuremath{\PC \assign target}
-\item No general-purpose register is modified.
-\item No condition flags are updated.
+\item Syntax: \code{jr \$target}
+\item Operation: register-indirect unconditional jump,
+      \code{\%pc~\assign~\$target}
+\item The \code{target} register contains the destination address.
+\item The destination address must be 4-byte aligned. Causes a
+      \code{MisalignedFetchException} if the \code{target} address is not
+      word-aligned.
 \end{itemize}
 
 \subsection{\code{jalr}}
 
 \begin{itemize}
-\item Syntax: \code{jalr rd, target}
-\item Operation: register-indirect call.
-\item The target register contains the destination address.
-\item The destination address must be 4-byte aligned.
-\item The return address is the address of the instruction following the \code{jalr}.
-\item The return address is written to (rd).
-\item Operation: \ensuremath{rd \assign \PC + 4}
-\item Operation: \ensuremath{\PC \assign target}
-\item No condition flags are updated.
-\end{itemize}
-
-\subsection{Link Register Convention}
-
-\begin{itemize}
-\item The architectural link register is (r15).
-\item The ABI name for (r15) is \code{lr}.
-\item The \code{call} instruction always writes the return address to (r15).
-\item The \code{jalr} instruction may write the return address to any general-purpose register.
-\item ABI-conforming code should use (r15) as the standard link register unless there is a specific reason to use another register.
+\item Syntax: \code{jalr \$rd, \$target}
+\item Operation: register-indirect call, \code{\%pc~\assign~UNSIGNED(target)}
+\item The \code{target} register contains the destination address.
+\item The destination address must be 4-byte aligned. Causes a
+      \code{MisalignedFetchException} if the \code{target} address is not
+      word-aligned.
+\item The return address is written to \code{rd}, \code{rd~\assign~\%pc + 4}
 \end{itemize}
 
 \subsection{\code{ret}}
 
 \begin{itemize}
-\item \code{ret} is an assembler pseudo-instruction, not a distinct architectural instruction in VIV-32 v0.1.
+\item \code{ret} is an assembler pseudo-instruction, not a distinct
+architectural instruction in VIV-32 v\version.
 \item Syntax: \code{ret}
-\item Expansion: \code{jr r15}
+\item Expansion: \code{jr \$15}
 \item Operation: return to the address held in the link register.
 \item No condition flags are updated.
 \end{itemize}
@@ -995,36 +1430,50 @@ Jump and call instructions perform unconditional control transfer. Unlike branch
 
 \begin{itemize}
 \item A call instruction overwrites the link register.
-\item A function that calls another function must save its incoming link register value if it needs to return to its own caller.
-\item The ABI defines how functions save and restore the link register.
+\item A function that calls another function must save its incoming link
+      register value if it needs to return to its own caller, e.g.:
+
+      \code{push \$lr}
+
+      \code{call func}
+
+      \code{pop \$lr}
 \end{itemize}
 
 \section{System and Control Instructions}
 
-System and control instructions provide access to processor control state, exception handling, interrupt control, and execution control.
+System and control instructions provide access to processor control state,
+exception handling, interrupt control, and execution control.
 
 \subsection{Control Registers}
 
 \begin{itemize}
   \item VIV-32 defines a small set of architectural control registers.
   \item Control registers are accessed using \code{mrs} and \code{msr}.
-  \item Access permissions are defined by the privilege model. In VIV-32 v0.1, only machine mode is defined.
+  \item Access permissions are defined by the privilege model. In VIV-32
+        v\version, only machine mode is defined.
 \end{itemize}
 
 \begin{center}
 \begin{tabular}{lll}
-\hline
-Name & Meaning & Description \\
-\hline
-\code{pc}     & Program counter & Current instruction address \\
-\code{sr}     & Status register & Condition flags and interrupt-enable state \\
-\code{epc}    & Exception program counter & Address saved on exception entry \\
-\code{ecause} & Exception cause & Cause code saved on exception entry \\
-\code{eaddr}  & Exception address & Faulting address saved on relevant exceptions \\
-\code{evbase} & Exception vector base & Base address for exception and interrupt vectors \\
-\hline
+\textbf{Name} & \textbf{Meaning} & \textbf{Description} \\
+\code{\%pc}     & Program counter           & Address of the currently executing instruction \\
+\code{\%sr}     & Status register           & Condition flags and interrupt-enable state \\
+\code{\%epc}    & Exception program counter & Continuation address saved on exception entry \\
+\code{\%esr}    & Exception status register & Status register saved on exception entry \\
+\code{\%ecause} & Exception cause           & Cause code saved on exception entry \\
+\code{\%edata}  & Exception data            & Exception-specific data saved on exception entry \\
+\code{\%evbase} & Exception vector base     & Base address for exception and interrupt vectors \\
 \end{tabular}
 \end{center}
+
+\noindent
+For the purposes of instruction semantics, \code{\%pc} contains the address of the instruction
+currently being executed. References to \code{\%pc + 4} therefore refer to the address of the
+following sequential instruction.
+
+At an architectural instruction boundary, before the next instruction begins execution,
+\code{\%pc} identifies the next instruction to be executed.
 
 \subsection{\code{nop}}
 
@@ -1051,14 +1500,13 @@ Name & Meaning & Description \\
 \subsection{\code{trap}}
 
 \begin{itemize}
-  \item Syntax: \code{trap imm}
+  \item Syntax: \code{trap imm12}
   \item Operation: raise a software trap exception.
-  \item The immediate operand is encoded as the X-type \code{trapimm12} payload.
-  \item On trap entry, \code{ecause} receives the software trap exception code.
-  \item On trap entry, \code{epc} receives the address of the instruction following the \code{trap} instruction.
-  \item On trap entry, \code{eaddr} receives zero.
-  \item The trap immediate is not stored in \code{ecause}.
-  \item Software may recover the trap immediate by decoding the \code{trap} instruction at \ensuremath{epc - 4}.
+  \item The immediate operand is encoded as the X-type \code{imm12} payload.
+  \item On trap entry, \code{\%ecause} receives \code{SoftwareTrap}.
+  \item On trap entry, \code{\%edata} receives \code{ZEXT(imm12)}.
+  \item On trap entry, \code{\%epc} receives the address of the instruction following
+        the \code{trap} instruction.
   \item The exception entry sequence is defined in the exceptions and interrupts chapter.
   \item No condition flags are updated.
 \end{itemize}
@@ -1070,22 +1518,34 @@ Name & Meaning & Description \\
   \item Operation: raise a system call exception.
   \item \code{syscall} is a distinct architectural instruction.
   \item \code{syscall} may share exception-entry machinery with \code{trap}.
-  \item On syscall entry, \code{epc} receives the address of the instruction following the \code{syscall}.
-  \item On syscall entry, \code{ecause} receives the system call exception code.
+  \item On syscall entry, \code{\%epc} receives the address of the instruction following the \code{syscall}.
+  \item On syscall entry, \code{\%ecause} receives the system call exception code.
   \item The system call number and arguments are passed according to the ABI.
   \item The exception entry sequence is defined in the exceptions and interrupts chapter.
   \item No condition flags are updated.
 \end{itemize}
 
-\subsection{\code{iret}}
+\subsection{iret}
 
 \begin{itemize}
-  \item Syntax: \code{iret}
-  \item Operation: return from interrupt or exception.
-  \item Execution resumes from the address stored in \code{epc}.
-  \item Operation: \ensuremath{\PC \assign \code{epc}}
-  \item The precise status-register restore behaviour is defined in the exceptions and interrupts chapter.
-  \item No condition flags are updated, except as part of status-register restoration if defined.
+\item Syntax: \code{iret}
+\item Operation: return from an exception or interrupt.
+\item The program counter is restored from \code{\%epc}.
+\item The processor status register is restored from \code{\%esr}.
+\item Operation:
+\end{itemize}
+
+$$
+\code{\%pc} \leftarrow \code{\%epc}
+$$
+
+$$
+\code{\%sr} \leftarrow \code{\%esr}
+$$
+
+\begin{itemize}
+\item All condition flags and the interrupt-enable state are restored as part of the
+\code{\%sr} restoration.
 \end{itemize}
 
 \subsection{\code{ei}}
@@ -1093,7 +1553,7 @@ Name & Meaning & Description \\
 \begin{itemize}
   \item Syntax: \code{ei}
   \item Operation: enable maskable interrupts.
-  \item The interrupt-enable bit in \code{sr} is set.
+  \item The interrupt-enable bit in \code{\%sr} is set.
   \item No general-purpose register is modified.
   \item No condition flags are updated.
 \end{itemize}
@@ -1103,7 +1563,7 @@ Name & Meaning & Description \\
 \begin{itemize}
   \item Syntax: \code{di}
   \item Operation: disable maskable interrupts.
-  \item The interrupt-enable bit in \code{sr} is cleared.
+  \item The interrupt-enable bit in \code{\%sr} is cleared.
   \item No general-purpose register is modified.
   \item No condition flags are updated.
 \end{itemize}
@@ -1111,147 +1571,182 @@ Name & Meaning & Description \\
 \subsection{\code{rdpc}}
 
 \begin{itemize}
-  \item Syntax: \code{rdpc rd}
+  \item Syntax: \code{rdpc \$rd}
   \item Operation: read program counter.
-  \item The address of the \code{rdpc} instruction is written to \(rd\).
-  \item Operation: \ensuremath{rd \assign \PC}
+  \item The address of the \code{rdpc} instruction is written to \code{rd}.
+  \item Operation: \code{rd~\assign~\%pc}
   \item No condition flags are updated.
 \end{itemize}
 
 \subsection{\code{mrs}}
 
 \begin{itemize}
-  \item Syntax: \code{mrs rd, cr}
+  \item Syntax: \code{mrs \$rd, \%cr}
   \item Operation: move from control register.
-  \item The value of control register \code{cr} is written to \(rd\).
+  \item The value of control register \code{cr} is written to \code{rd}.
   \item No condition flags are updated.
 \end{itemize}
 
 \subsection{\code{msr}}
 
 \begin{itemize}
-  \item Syntax: \code{msr cr, rs}
+  \item Syntax: \code{msr \%cr, \$rs}
   \item Operation: move to control register.
-  \item The value of \(rs\) is written to control register \code{cr}.
+  \item The value of \code{rs} is written to control register \code{cr}. Reserved
+        bits are not updated.
   \item Writes to control registers may have immediate architectural effects.
-  \item Writing \code{pc} using \code{msr} is not supported in VIV-32 v0.1.
-  \item No condition flags are updated, except when writing \code{sr}.
+  \item \code{\%pc} is read-only through the control-register interface.
+  \item Executing \code{msr \%pc, \$rs} raises an
+        \code{IllegalInstructionException}. The program counter is not modified by the
+        control-register write.
+  \item No condition flags are updated, except when writing \code{\%sr}.
 \end{itemize}
+
+\subsubsection{Writing to \code{\%evbase}:}
+\begin{itemize}
+\item Writing \code{\%evbase} requires the source value to be 16-byte aligned.
+\item If the source value is not 16-byte aligned, \code{\%evbase} is left unchanged and
+the processor enters the halted state.
+\item This condition does not raise an exception.
+\end{itemize}
+
 
 \section{Pseudo-Instructions}
 
-Pseudo-instructions are assembler conveniences. They do not necessarily correspond to distinct architectural instruction encodings. A conforming assembler may expand pseudo-instructions into one or more real VIV-32 instructions.
+Pseudo-instructions are assembler conveniences. They do not necessarily correspond
+to distinct architectural instruction encodings. A conforming assembler may expand
+pseudo-instructions into one or more real VIV-32 instructions.
 
 \subsection{Pseudo-Instruction Policy}
 
 \begin{itemize}
-  \item Pseudo-instructions are not part of the architectural instruction encoding unless explicitly stated otherwise.
-  \item Pseudo-instructions may expand differently depending on immediate size, relocation requirements, or target address range.
+  \item Pseudo-instructions are not part of the architectural instruction encoding
+        unless explicitly stated otherwise.
+  \item Pseudo-instructions may expand differently depending on immediate size,
+        relocation requirements, or target address range.
   \item The assembler is responsible for selecting a correct expansion.
   \item The exact expansion rules are defined by the assembler and toolchain specification.
+  \item Pseudo-instructions do not define independent architectural side effects beyond
+        those produced by their expansion into real VIV-32 instructions.
+  \item Unless a pseudo-instruction definition explicitly constrains the expansion,
+        condition flags, control-register effects, exceptions, and other observable
+        behaviour are those of the selected instruction sequence.
+  \item A conforming assembler must preserve the functional meaning of the
+        pseudo-instruction, but different valid expansions may differ in incidental
+        architectural side effects where this specification does not require otherwise.
 \end{itemize}
+
+\subsection{\code{ldd}}
+
+\begin{itemize}
+  \item Syntax: \code{ldd \#rd, [\$base, imm15]}
+  \item Operation: loads a binary64 value from the calculated memory address, as
+        per the load/store memory address algorithm, into floating-point register
+        \code{rd}. Loads in big-endian order, with the upper double-half at the
+        calculated address, and the lower double-half \code{address + 4}.
+\end{itemize}
+
+\subsection{\code{sdd}}
+
+\begin{itemize}
+  \item Syntax: \code{sdd \#rs, [\$base, imm15]}
+  \item Operation: stores a binary64 value from floating-point register
+        \code{rs} into the calculated memory address, as per the load/store
+        memory address algorithm. Stores in big-endian order, with the upper
+        double-half at the calculated address, and the lower double-half at
+        \code{address + 4}.
+\end{itemize}
+
 
 \subsection{\code{li}}
 
 \begin{itemize}
-  \item Syntax: \code{li rd, imm32}
-  \item Operation: load a 32-bit immediate value into \(rd\).
-  \item \code{li} is a pseudo-instruction.
-  \item The assembler expands \code{li} into one or more constant-construction instructions.
-  \item Possible expansions include:
-  \begin{itemize}
-    \item \code{lli rd, imm16}, when the value fits in 16 bits;
-    \item \code{lui rd, upper16} followed by a lower-half construction instruction;
-    \item a relocation-aware sequence when the value depends on linker resolution.
-  \end{itemize}
+  \item Syntax: \code{li \$rd, imm32}
+  \item Operation: load a 32-bit immediate value into \code{rd}.
+  \item The assembler expands \code{li} into one or more constant-construction
+         instructions, e.g.:
+
+        \code{lli rd, imm32 \& 0xFFFF}
+        
+        \code{lhi rd, (imm32 >{}> 16) \& 0xFFFF}
+        
 \end{itemize}
 
 \subsection{\code{la}}
 
 \begin{itemize}
-  \item Syntax: \code{la rd, symbol}
-  \item Operation: load the address of \code{symbol} into \(rd\).
-  \item \code{la} is a pseudo-instruction.
-  \item The assembler expands \code{la} into relocation-aware address construction instructions.
-  \item The final address may be resolved by the linker.
-  \item The exact expansion is defined by the toolchain specification.
+  \item Syntax: \code{la \$rd, symbol}
+  \item Operation: load the address of \code{symbol} into \code{rd}.
+  \item \code{symbol} \textbf{MUST} be a label.
+  \item The assembler expands \code{la} into relocation-aware address
+        construction instructions. The final address will be resolved by the
+        linker.
 \end{itemize}
 
-\subsection{\code{mov}}
+\subsection{\code{mov, movd}}
 
 \begin{itemize}
-  \item Syntax: \code{mov rd, rs}
-  \item Operation: copy the value of \(rs\) into \(rd\).
-  \item \code{mov} is a pseudo-instruction.
-  \item Recommended expansion: \code{addi rd, rs, 0}
-  \item Since \code{addi} updates flags by default, assemblers may alternatively use a non-flag-setting move sequence if such an instruction is later defined.
+  \item Syntax: \code{mov \$rd, \$rs | movd \#rd, \#rs}
+  \item Operation: copy the value of \code{rs} into \code{rd}, \code{rd~\assign~rs}
+  \item The internal construction ensures flags are updated accordingly.
 \end{itemize}
 
-\subsection{\code{clear}}
+\subsection{\code{clr, clrd}}
 
 \begin{itemize}
-  \item Syntax: \code{clear rd}
-  \item Operation: write zero to \(rd\).
-  \item \code{clear} is a pseudo-instruction.
-  \item Recommended expansion: \code{addi rd, r0, 0}
-  \item Since \code{addi} updates flags by default, \code{clear} also updates flags unless the assembler provides a non-flag-setting expansion.
+  \item Syntax: \code{clr \$rd | clrd \#rd}
+  \item Operation: write zero to \code{rd}, \code{rd~\assign~0}
+  \item The internal construction ensure flags are updated accordingly.
 \end{itemize}
 
 \subsection{\code{ret}}
 
+See definition under Jump and Call Instructions.
+
+\subsection{\code{push, pushd}}
+
 \begin{itemize}
-  \item Syntax: \code{ret}
-  \item Operation: return to the address stored in the link register.
-  \item \code{ret} is a pseudo-instruction in VIV-32 v0.1.
-  \item Expansion: \code{jr r15}
+\item Syntax: \code{push \$rs | pushd \#rs}
+\item Operation: push a register value onto the stack.
+\item The stack grows downward.
+\item The assembler expands the pseudo-instruction into the appropriate
+      stack-pointer adjustment and store instruction sequence.
+\item Preservation of ABI stack-alignment requirements, including alignment
+      at function-call boundaries, is the responsibility of the toolchain
+      and generated instruction sequence rather than the architectural
+      \code{push} or \code{pushd} pseudo-instruction itself.
 \end{itemize}
 
-\subsection{\code{push}}
+\subsection{\code{pop, popd}}
 
 \begin{itemize}
-  \item Syntax: \code{push rs}
-  \item Operation: push a 32-bit register value onto the stack.
-  \item \code{push} is a pseudo-instruction.
-  \item The stack grows downward.
-  \item Recommended expansion:
-  \begin{verbatim}
-addi sp, sp, -4
-sw   rs, 0(sp)
-  \end{verbatim}
-  \item The expansion must preserve stack alignment requirements at public function call boundaries.
-\end{itemize}
-
-\subsection{\code{pop}}
-
-\begin{itemize}
-  \item Syntax: \code{pop rd}
-  \item Operation: pop a 32-bit register value from the stack.
-  \item \code{pop} is a pseudo-instruction.
-  \item Recommended expansion:
-  \begin{verbatim}
-lw   rd, 0(sp)
-addi sp, sp, 4
-  \end{verbatim}
-  \item The expansion must preserve stack alignment requirements at public function call boundaries.
+  \item Syntax: \code{pop \$rd | popd \#rd}
+  \item Operation: pops a register value from the stack.
+  \item Care must be taken by the programmer to ensure this is used in
+        conjunction with the appropriate \code{push, pushd}. If the stack is
+        not word-aligned, this will cause a \code{MisalignedAccessException}.
 \end{itemize}
 
 \section{Reserved Instructions}
 
 \begin{itemize}
-  \item Instruction encodings not defined by VIV-32 v0.1 are reserved.
+  \item Instruction encodings not defined by VIV-32 v\version{} are reserved.
   \item Reserved encodings must not be generated by conforming assemblers.
   \item Reserved encodings are reserved for future architectural extensions, implementation-specific features, or debugging facilities.
   \item Executing a reserved encoding raises an illegal-instruction exception.
-  \item On an illegal-instruction exception, \code{epc} receives the address of the illegal instruction.
-  \item On an illegal-instruction exception, \code{ecause} receives the illegal-instruction exception code.
-  \item If exception handling is unavailable, the machine halts.
+  \item On an illegal-instruction exception, \code{\%epc} receives the continuation address, with
+        the offending address placed into \code{\%edata}.
+  \item On an illegal-instruction exception, \code{\%ecause} receives the illegal-instruction exception code.
 \end{itemize}
 
 \section{Instruction Set Status}
 
 \begin{itemize}
-  \item The VIV-32 v0.1 instruction set is provisional.
-  \item Instruction semantics in this chapter are architectural unless explicitly described as pseudo-instructions.
+  \item The VIV-32 v\version{} instruction set is defined by this specification.
+        Incompatible future architectural changes require a new architecture version.
+  \item Instruction semantics in this chapter are architectural unless explicitly
+        described as pseudo-instructions.
   \item Opcode assignments are defined separately by the opcode map.
-  \item Assembler syntax and pseudo-instruction expansion rules are defined by the toolchain specification.
+  \item Assembler syntax and pseudo-instruction expansion rules are defined by the
+        toolchain specification.
 \end{itemize}

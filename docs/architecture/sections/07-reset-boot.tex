@@ -1,22 +1,26 @@
 \section{Reset Model}
 
-Reset places the processor into a known architectural state and begins instruction execution from the reset vector.
+Reset places the processor into a known architectural state and begins instruction execution
+from the reset vector.
 
-VIV-32 v0.1 defines only machine-mode reset. User-mode reset, supervisor-mode reset, secure boot, and multi-stage privilege transitions are reserved for future versions.
+VIV-32 v\version{} defines only machine-mode reset. User-mode reset, supervisor-mode
+reset, secure boot, and multi-stage privilege transitions are reserved for future versions.
 
 \section{Reset Vector}
 
 On reset, the program counter is set to the architectural reset vector.
 
 \begin{center}
-\code{PC = 0x00000000}
+\code{\%pc = 0x00000000}
 \end{center}
 
 \noindent
-The reset vector address must be 4-byte aligned. The platform must ensure that executable reset code is available at the reset vector address.
+The reset vector address must be 4-byte aligned. The platform must ensure that
+executable reset code is available at the reset vector address.
 
 \noindent
-A platform may implement the reset vector using ROM, RAM preloaded by an emulator, memory-mapped boot firmware, or another platform-defined boot mechanism.
+A platform may implement the reset vector using ROM, RAM preloaded by an
+emulator, memory-mapped boot firmware, or another platform-defined boot mechanism.
 
 \section{Reset State}
 
@@ -28,31 +32,43 @@ After reset, architectural state is initialized as follows:
 State & Reset value & Notes \\
 \hline
 \code{PC} & \code{0x00000000} & Reset vector \\
-\code{r0} & \code{0x00000000} & Hardwired zero \\
-\code{r1--r15} & Undefined & Software must initialize before use \\
-\code{sr.N} & \code{0} & Negative flag cleared \\
-\code{sr.Z} & \code{0} & Zero flag cleared \\
-\code{sr.C} & \code{0} & Carry flag cleared \\
-\code{sr.V} & \code{0} & Overflow flag cleared \\
-\code{sr.E} & \code{0} & Arithmetic error flag cleared \\
-\code{sr.IE} & \code{0} & Interrupts disabled \\
-\code{epc} & Undefined & No exception has been taken \\
-\code{ecause} & \code{0x00} & Reset cause \\
-\code{eaddr} & \code{0x00000000} & No fault address \\
-\code{evbase} & Platform-defined & Must be initialized before exceptions handling is used \\
+\code{\$0} & \code{0x00000000} & Hardwired zero \\
+\code{\$1--\$15} & Undefined & Software must initialize before use \\
+\code{\#0--\#7} & Undefined & Software must initialize before use \\
+\code{\%sr.N} & \code{0} & Negative flag cleared \\
+\code{\%sr.Z} & \code{0} & Zero flag cleared \\
+\code{\%sr.C} & \code{0} & Carry flag cleared \\
+\code{\%sr.V} & \code{0} & Overflow flag cleared \\
+\code{\%sr.I} & \code{0} & Infinity flag cleared \\
+\code{\%sr.U} & \code{0} & Underflow flag cleared \\
+\code{\%sr.X} & \code{0} & Inexact flag cleared \\
+\code{\%sr.E} & \code{0} & Arithmetic error flag cleared \\
+\code{\%sr.IE} & \code{0} & Interrupts disabled \\
+\code{\%epc} & Undefined & No exception has been taken \\
+\code{\%esr} & Undefined & No exception status has been saved \\
+\code{\%ecause} & \code{0x00} & Reset cause \\
+\code{\%edata} & \code{0x00000000} & No exception data \\
+\code{\%evbase} & Platform-defined & Must be 16-byte aligned; software must initialize
+ before exception handling is used \\
 \hline
 \end{tabular}
 \end{center}
 
 \noindent
-General-purpose registers other than \code{r0} are undefined after reset. Boot code must initialize \code{sp}, global pointers, frame pointers, and any other registers required by the ABI or execution environment.
+Any platform-defined reset value of \code{\%evbase} must satisfy the architectural 16-byte
+alignment requirement.
+General-purpose registers other than \code{r0} are undefined after reset. Boot code
+must initialize \code{\$sp}, global pointers, frame pointers, and any other registers
+required by the ABI or execution environment.
 
 \section{Reset Cause}
 
-Reset is represented architecturally by exception cause value \code{0x00}. After reset, \code{ecause} contains \code{0x00}.
+Reset is represented architecturally by exception cause value \code{0x00}.
+After reset, \code{\%ecause} contains \code{0x00}.
 
 \noindent
-Reset does not require the processor to enter through the ordinary exception vector calculation. On reset, execution begins directly at the reset vector.
+Reset does not require the processor to enter through the ordinary exception
+vector calculation. On reset, execution begins directly at the reset vector.
 
 \section{Initial Interrupt State}
 

@@ -16,31 +16,38 @@
 
 \begin{itemize}
   \item Word size: 32 bits.
-  \item Register width: 32 bits.
   \item Address size: 32 bits.
   \item Byte size: 8 bits.
   \item Endianness: big-endian.
   \item Memory model: flat byte-addressed memory.
   \item Address space model: flat 32-bit physical address space.
-  \item Virtual memory / paging: not supported in VIV-32 v0.1.
-  \item Segmentation: not supported in VIV-32 v0.1.
+  \item Virtual memory / paging: not supported in VIV-32 v\version{}.
+  \item Segmentation: not supported in VIV-32 v\version{}.
 \end{itemize}
 
 \section{Instruction Model}
 
 \begin{itemize}
   \item Instruction width: fixed 32-bit instructions.
-  \item Instruction encoding style: regular RISC-style encoding with a small number of instruction format families.
-  \item Variable-width instructions: not supported in VIV-32 v0.1.
-  \item Compressed or variable-width instruction encodings are deferred to a later architecture extension.
+  \item Instruction encoding style: regular RISC-style encoding with a small
+        number of instruction format families.
+  \item Variable-width instructions: not supported in VIV-32 v\version{}.
+  \item Compressed or variable-width instruction encodings are deferred to a
+        later architecture extension.
+  \item Separate register tables for general purpose and floating point
+        operations.
   \item Load/store architecture: yes.
   \item Arithmetic and logical operations operate on registers.
   \item Memory is accessed only through explicit load and store instructions.
-  \item Memory operand policy: arithmetic and logical instructions do not operate directly on memory operands.
+  \item Memory operand policy: arithmetic and logical instructions do not
+        operate directly on memory operands.
   \item Immediate sizes: defined per instruction format.
-  \item Branch offset unit: 32-bit instruction words, shifted left by two bits to form byte offsets.
-  \item Branch range: BF-type branches use \code{offset22}; BC-type branches use \code{offset14}.
-  \item Opcode extension policy: reserve opcode space for future architectural extensions.
+  \item Branch offset unit: 32-bit instruction words, shifted left by two bits
+        to form byte offsets.
+  \item Branch range: BF-type branches use \code{offset22}; BC-type
+        branches use \code{offset14}.
+  \item Opcode extension policy: reserve opcode space for future architectural
+        extensions.
   \item Possible future extensions include:
   \begin{itemize}
     \item compressed instructions;
@@ -53,18 +60,24 @@
 \section{Register Model}
 
 \begin{itemize}
-  \item Number of general-purpose registers: 16.
-  \item Register width: 32 bits.
-  \item General-purpose registers are named \(r0\) through \(r15\).
-  \item Register \(r0\) is hardwired to zero.
-  \item Reads from \(r0\) always return zero.
-  \item Writes to \(r0\) are ignored.
-  \item Register \(r14\) is reserved by ABI convention as the stack pointer.
-  \item Register \(r15\) is used as the link register for call and return instructions.
-  \item Register \(r13\) is reserved by ABI convention as an optional frame pointer.
+  \item Sixteen 32-bit general-purpose registers with signed and unsigned
+        operations.
+  \item Eight 64-bit floating-point registers.
+  \item General-purpose registers are named \code{\$0} through \code{\$15}.
+  \item Floating-point registers are named \code{\#0} through
+        \code{\#7}.
+  \item Register \code{\$0} is hardwired to zero; reads always return zero, and
+        writes are ignored.
+  \item Register \code{\$13} is reserved by ABI convention as an optional frame
+        pointer \code{\$fp}.
+  \item Register \code{\$14} is reserved by ABI convention as the stack pointer
+        \code{\$sp}.
+  \item Register \code{\$15} is used as the link register \code{\$lr} for call
+        and return instructions.
   \item The frame pointer is not a dedicated architectural register.
   \item The program counter is directly readable using a dedicated instruction.
-  \item The program counter is not directly writable as a general-purpose register.
+  \item The program counter is not directly writable as a general-purpose
+        register.
   \item Control flow changes are performed through:
   \begin{itemize}
     \item branch instructions;
@@ -75,44 +88,95 @@
     \item interrupt-return instructions.
   \end{itemize}
   \item Special/control registers include:
-  \begin{itemize}
-    \item \texttt{pc}: program counter;
-    \item \texttt{sr}: status register;
-    \item \texttt{epc}: exception program counter;
-    \item \texttt{ecause}: exception cause;
-    \item \texttt{eaddr}: exception address;
-    \item \texttt{evbase}: exception vector base.
-  \end{itemize}
+        \begin{itemize}
+        \item \code{\%pc}: program counter;
+        \item \code{\%sr}: status register;
+        \item \code{\%epc}: exception program counter;
+        \item \code{\%esr}: exception status register, containing the
+              status-register value saved on exception entry;
+        \item \code{\%ecause}: exception cause;
+        \item \code{\%edata}: exception-specific data associated with the most
+              recent exception or interrupt.
+        \item \code{\%evbase}: exception vector base.
+        \end{itemize}
   \item Parallel/vector register support is not included in the base ISA.
-  \item Future extensions may define SIMD, vector, matrix, or co-processor facilities.
-  \item Matrix or co-processor support is deferred to a future extension or memory-mapped accelerator design.
+  \item Future extensions may define SIMD, vector, matrix, or co-processor
+        facilities.
+  \item Matrix or co-processor support is deferred to a future extension or
+        memory-mapped accelerator design.
 \end{itemize}
 
 \section{Arithmetic and Flags}
 
 \begin{itemize}
-  \item Integer representation: two's complement.
-  \item Arithmetic results wrap modulo \(2^{32}\).
-  \item Signed overflow sets the overflow flag.
-  \item VIV-32 defines condition flags in the processor status register.
-  \item Condition flags: Negative, Zero, Carry, Overflow, and Arithmetic Error.
-  \item Flag names: NZCVE.
-  \item Negative flag \(N\): set when the result of a flag-setting operation has bit 31 set.
-  \item Zero flag \(Z\): set when the result of a flag-setting operation is zero.
-  \item Carry flag \(C\): set when an unsigned arithmetic operation produces a carry out of bit 31.
-  \item For subtraction, \(C\) indicates that no borrow occurred.
-  \item Overflow flag \(V\): set when a signed arithmetic operation overflows the 32-bit two's complement range.
-  \item Arithmetic Error flag \(E\): set when an arithmetic operation produces an exceptional condition that does not trap in VIV-32 v0.1.
-  \item Integer divide-by-zero sets the \(E\) flag.
-  \item Comparisons update the NZCV flags without storing a result.
-  \item Conditional branches test the current flag state.
-  \item Flag update behaviour is defined per instruction.
-  \item Multiplication in v0.1: yes.
-  \item Division in v0.1: yes.
-  \item Floating point in v0.1: no. Floating point is reserved for a future extension after the integer ISA is stable.
-  \item Atomic instructions in v0.1: no.
-  \item Atomic instructions are deferred to a later multiprocessing/shared-memory extension.
-  \item Bit manipulation instructions in v0.1: yes.
+\item Integer representation: two's complement.
+\item Floating-point register representation: IEEE-754 binary64.
+\item Floating-point memory representation: IEEE-754 binary32 and binary64.
+\item Signed and unsigned integer arithmetic results wrap modulo \(2^{32}\).
+\item Floating-point arithmetic is performed using IEEE-754 binary64 precision.
+\item Floating-point arithmetic and floating-point conversions use
+      round-to-nearest, ties-to-even unless otherwise specified by an
+      instruction.
+\item VIV-32 defines condition flags in the processor status register.
+\item Condition flags are \code{NZCVEIUX}:
+      \begin{itemize}
+      \item \code{NEGATIVE} (\code{N}): set when the numeric result of a
+            flag-setting operation is negative. For floating-point results,
+            the sign of zero does not cause \code{N} to be set.
+      \item \code{ZERO} (\code{Z}): set when the numeric result of a
+            flag-setting operation is zero. For floating-point operations,
+            both \code{+0.0} and \code{-0.0} are considered zero.
+      \item \code{CARRY} (\code{C}): used by integer arithmetic. Set when an
+            unsigned addition produces a carry out of bit 31. For subtraction,
+            \code{C} is set when no borrow is required and cleared when a borrow
+            is required. Floating-point operations clear \code{C} unless otherwise
+            specified.
+      \item \code{OVERFLOW} (\code{V}): used by integer arithmetic. Set when
+            the mathematical result cannot be represented in the destination
+            integer domain. Floating-point operations clear \code{V} unless
+            otherwise specified.
+      \item \code{ARITHMETIC ERROR} (\code{E}): set when an arithmetic or
+            conversion operation encounters an exceptional or invalid
+            condition that does not trap. This includes integer
+            divide-by-zero, floating-point divide-by-zero, invalid
+            floating-point operations, unordered flag-setting floating-point
+            comparisons, and invalid numeric conversions.
+      \item \code{INFINITY} (\code{I}): used by floating-point operations.
+            Set when the resulting IEEE-754 value is positive or negative
+            infinity. Integer operations clear \code{I} unless otherwise
+            specified.
+      \item \code{UNDERFLOW} (\code{U}): used by floating-point operations.
+            Set when a floating-point result is too small in magnitude to be
+            represented normally in the destination floating-point format.
+            Integer operations clear \code{U} unless otherwise specified.
+      \item \code{INEXACT} (\code{X}): used by floating-point operations and
+            conversions. Set when the mathematically exact result cannot be
+            represented exactly in the destination format and rounding is
+            therefore required. Integer operations clear \code{X} unless
+            otherwise specified.
+      \end{itemize}
+\item Integer arithmetic operations update the relevant \code{NZCVE} flags
+      and clear \code{IUX} unless otherwise specified.
+\item Floating-point arithmetic operations update the relevant
+      \code{NZEIUX} flags and clear \code{CV} unless otherwise specified.
+\item Floating-point divide-by-zero sets \code{E}; if the resulting value is
+      infinity, \code{I} is also set.
+\item Invalid floating-point operations producing \code{NaN} set \code{E}.
+\item Flag-setting floating-point comparisons involving \code{NaN} set
+      \code{E} to indicate an unordered comparison.
+\item Floating-point to integer conversion of \code{NaN}, infinity, or a
+      value outside the destination integer range sets \code{E}.
+\item Floating-point narrowing from binary64 to binary32 updates
+      \code{NZIUX} according to the binary32 result and sets \code{E} only
+      when the conversion is otherwise invalid.
+\item Integer comparisons update the relevant integer comparison flags and
+      clear floating-point-specific flags unless otherwise specified.
+\item Flag-setting floating-point comparisons update the relevant
+      floating-point flags; \code{C} and \code{V} have no floating-point
+      comparison meaning.
+\item Flag-based branch instructions test the current processor-status flags.
+      They do not interpret the flags as signed, unsigned, or floating-point
+      comparisons and do not perform a comparison themselves.
 \end{itemize}
 
 \section{Memory Access}
@@ -122,69 +186,93 @@
   \begin{itemize}
     \item 8-bit byte;
     \item 16-bit halfword;
-    \item 32-bit word.
+    \item 32-bit word;
   \end{itemize}
   \item Supported store sizes:
   \begin{itemize}
     \item 8-bit byte;
     \item 16-bit halfword;
-    \item 32-bit word.
+    \item 32-bit word;
   \end{itemize}
   \item Byte accesses may occur at any address.
   \item Halfword accesses must be aligned to a 2-byte boundary.
   \item Word accesses must be aligned to a 4-byte boundary.
-  \item 64-bit ABI values stored in memory should be aligned to an 4-byte word boundary.
-  \item Misaligned access behaviour: misaligned halfword or word accesses raise a misaligned access exception.
-  \item If a valid exception vector is unavailable, a misaligned access halts the machine.  
-  \item VIV-32 v0.1 defines no cache architecture.
-  \item All memory accesses are treated as direct accesses to memory or memory-mapped devices.
+  \item Misaligned access behaviour: misaligned halfword or word accesses raise
+        a\\
+        \code{MisalignedAccessException}.
+  \item VIV-32 v\version{} defines no cache architecture.
+  \item All memory accesses are treated as direct accesses to memory or
+        memory-mapped devices.
   \item VIV-32 uses memory-mapped I/O.
-  \item Device registers occupy reserved physical address ranges defined by the platform specification.
-  \item The default platform profile may reserve \texttt{0xFFFF0000--0xFFFFFFFF} for MMIO.
+  \item Device registers occupy reserved physical address ranges defined by the
+        platform specification.
 \end{itemize}
 
 \section{Control Flow}
 
 \begin{itemize}
-  \item Jump mechanism: PC-relative immediate jumps and register-indirect jumps.
-  \item Call mechanism: PC-relative call with link register, plus register-indirect call.
-  \item Return mechanism: return jumps to the address held in the link register.
-  \item A general register-indirect jump instruction may also be used for returns.
-  \item Link register behaviour: call instructions store the address of the next instruction in \(r15\), unless an explicit destination-register form is later defined.
-  \item Trap/syscall instruction: a software trap instruction transfers control to the exception vector and records the return address and cause in exception control registers.
-  \item Halt instruction behaviour: the halt instruction stops instruction execution until reset or platform-defined external action.
-  \item NOP encoding: \texttt{0x00000000}.
-  \item Extended immediates: VIV-32 v0.1 does not use implicit next-word operands in the base instruction stream.
-  \item Full-width constants and absolute addresses are constructed using explicit constant-loading instructions or assembler pseudo-instructions.
-  \item A future extension may define literal-pool or instruction-extension mechanisms.
+  \item Jump mechanism: \PC-relative immediate jumps (\code{jmp}) and
+        register-indirect jumps (\code{jr}).
+  \item Call mechanism: \PC-relative call with link register \code{call}, plus
+        register-indirect call (\code{jalr}).
+  \item Link register behaviour: \code{call} instructions store the address of
+        the next instruction in \code{\%lr}. \code{jalr} provides the option to
+        use a different return register.
+  \item Return mechanism: \code{ret} jumps to the address held in the link
+        register \code{\%lr}. A general register-indirect jump instruction may
+        also be used for returns, if previously loaded with an address via
+        \code{jalr}.
+  \item \code{trap} and \code{syscall} instructions transfer control to their
+        associated exception vectors and record the continuation address and cause in
+        exception control registers \code{\%epc} and \code{\%ecause}.
+        \code{trap} additionally stores its immediate operand in
+        \code{\%edata}. \code{syscall} sets \code{\%edata} to \code{0}.
+  \item Halt instruction behaviour: the \code{halt} instruction stops
+        instruction execution until reset or platform-defined external action.
+  \item NOP encoding: \code{0x00000000}.
+  \item Extended immediates: VIV-32 v\version{} does not use implicit
+        next-word operands in the base instruction stream. Full-width constants
+        and absolute addresses can be constructed using the pseudo-instructions
+        \code{li} and \code{la}, respectively.
 \end{itemize}
 
-\section{Exceptions and Interrupts}
+\section{Reset, Exceptions and Interrupts}
 
 \begin{itemize}
-  \item Privilege model: VIV-32 v0.1 defines machine mode only.
-  \item User and supervisor modes are reserved for future versions.
-  \item Reset vector: \code{0x00000000}; reset begins directly at the reset vector rather than through the exception vector table.  
-  \item Exception vector model: VIV-32 uses a vector base register and cause-specific vector offsets.
-  \item The exact vector layout is defined by the architecture.
-  \item Interrupt vector model: timer interrupts and external interrupts transfer control through the exception vector mechanism.
+  \item Privilege model: VIV-32 v\version{} defines machine mode only. User and
+        supervisor modes are reserved for future versions.
+  \item Reset: reset begins directly at \code{0x00}.
+  \item Exception vector model: VIV-32 uses a vector base register
+        \code{\%evbase} and cause-specific vector offsets. The exact vector
+        layout is defined later in this document.
+  \item Interrupt vector model: interrupts transfer control through the
+        exception vector mechanism.
   \item Exception types:
-  \begin{itemize}
-    \item illegal instruction;
-    \item misaligned access;
-    \item software trap;
-    \item timer interrupt;
-    \item external interrupt.
-  \end{itemize}
-  \item Interrupt enable/disable mechanism: the processor status register contains an interrupt-enable bit.
-  \item Instructions are provided to enable and disable interrupts.
-  \item Return-from-interrupt instruction: VIV-32 defines an interrupt-return instruction which resumes execution from the saved exception program counter.
-  \item Timer interrupt: supported in VIV-32 v0.1.
+
+        \begin{itemize}
+          \item \code{Reset};
+          \item \code{IllegalInstructionException};
+          \item \code{MisalignedFetchException};
+          \item \code{MisalignedAccessException};
+          \item \code{SoftwareTrap};
+          \item \code{SystemCall};
+          \item \code{Interrupt};
+          \item \code{BusError}.
+        \end{itemize}
+        
+  \item Interrupt enable/disable mechanism: the processor status register
+        contains an interrupt-enable bit, which can be cleared (disabled) with
+        \code{di} and set (enabled) with \code{ei}. The CPU starts with this
+        bit cleared---a program wishing to use interrupts should enable this
+        after configuring the relevant peripheral settings.
+  \item \code{iret} instruction: VIV-32 defines an interrupt-return instruction
+        which resumes execution from the saved exception program counter in
+        \code{\%epc}.
+  \item Illegal instruction behaviour: illegal instructions raise an
+        \code{IllegalInstructionException}.
   \item External interrupt: reserved for platform devices.
-  \item Illegal instruction behaviour: illegal instructions raise an illegal-instruction exception. If exception handling is unavailable, the machine halts.  
-  \item Misaligned access behaviour: misaligned halfword or word accesses raise a misaligned access exception if exception handling is enabled.
-  \item If exception handling is not enabled, misaligned access halts the machine.
-  \item Divide-by-zero behaviour: integer divide-by-zero does not trap in VIV-32 v0.1.
-  \item Integer divide-by-zero sets the arithmetic-error status flag.
-  \item Software is responsible for checking the arithmetic-error flag.
+  \item Timer interrupt: supported in VIV-32 v\version{} through the general
+        platform device interrupt ISR.
+  \item Divide-by-zero behaviour: divide-by-zero does not trap in VIV-32
+        v\version{}. Software is responsible for checking \code{ARITHMETIC ERROR}.
 \end{itemize}

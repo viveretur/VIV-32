@@ -1,12 +1,12 @@
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Creg {
-    PC,
-    SR,
-    EPC,
-    ESR,
-    ECause,
-    EData,
-    EvBase,
+    PC = 0x0,
+    SR = 0x1,
+    EPC = 0x2,
+    ESR = 0x3,
+    ECause = 0x4,
+    EData = 0x5,
+    EvBase = 0x6,
 }
 
 impl std::fmt::Display for Creg {
