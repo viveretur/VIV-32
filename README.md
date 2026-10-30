@@ -18,6 +18,14 @@ For the current development plan, see [TODO.md](TODO.md).
 
 ## Quick start
 
+Development Requirements:
+- rust, with cargo
+- dune
+- just
+- make
+- latex (if building documentation)
+- python3
+
 Common commands are defined in `justfile`. To build and run the default VIV-32 demo:
 
 ```bash
